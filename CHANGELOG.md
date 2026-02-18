@@ -5,6 +5,22 @@ Kaikki projektin merkittävät muutokset dokumentoidaan tähän tiedostoon.
 Formaatti perustuu [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) -standardiin,
 ja projekti noudattaa [Semantic Versioning](https://semver.org/spec/v2.0.0.html) -versiointia.
 
+## [1.3.0] - 2026-02-19
+
+### Lisätty
+- 🤖 **Automaattinen osakeyhteenveto** – rule-based analyysi jokaiselle osakkeelle analyysi-välilehdellä
+  - Värikoodatut pisteet arvostuksesta (P/E, P/B), kannattavuudesta (ROE, nettomarginaali), teknisestä tilanteesta (RSI, SMA50/200), velkaantumisesta (D/E) ja osinkotuotosta
+  - Kokonaissignaali (OSTA/MYY) yhteenvedossa
+  - Huomautus: ei sijoitusneuvontaa
+- 🌐 **Yrityksen kuvaus käännetään suomeksi** – Google Translaten kautta (deep-translator)
+  - Käännös välimuistitetaan 24 tunniksi
+  - Palautuu alkuperäiseen englantiin jos käännös epäonnistuu
+
+### Korjattu
+- 🔢 **Osinko % näytti väärän arvon** – yfinance palauttaa arvon jo prosentteina, korjattu kertominen 100:lla pois
+- 🔍 **Suomen pörssi -taulukko näytti vain suodatetut osakkeet synkrauksen jälkeen** – suodatin ja hakukenttä nollataan nyt automaattisesti synkrauksen yhteydessä
+- ➕ **Valmet (VALMT.HE) lisätty Suomen pörssin listaukseen**
+
 ## [1.2.0] - 2026-02-18
 
 ### Lisätty

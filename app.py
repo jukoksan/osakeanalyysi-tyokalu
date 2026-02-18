@@ -29,6 +29,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import io
 import time
+from deep_translator import GoogleTranslator
 
 # Asetukset
 VERSION = "1.3.0"
@@ -45,6 +46,7 @@ FINNISH_STOCKS = {
     "STERV.HE":    "Stora Enso R",
     "KNEBV.HE":    "KONE",
     "WRTBV.HE":    "Wärtsilä",
+    "VALMT.HE":    "Valmet",
     "SAMPO.HE":    "Sampo",
     "ELISA.HE":    "Elisa",
     "ORNBV.HE":    "Orion B",
@@ -252,6 +254,24 @@ def fetch_stock_history(symbol, start_date, end_date):
     stock = yf.Ticker(symbol)
     df = stock.history(start=start_date, end=end_date)
     return df
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def translate_to_finnish(text):
+    """Kääntää tekstin suomeksi Google Translaten avulla. Välimuistissa 24h."""
+    if not text:
+        return text
+    try:
+        # Google Translate rajoittaa 5000 merkkiin per pyynö
+        chunks, size = [], 4900
+        for i in range(0, len(text), size):
+            chunks.append(text[i:i+size])
+        translated = " ".join(
+            GoogleTranslator(source="en", target="fi").translate(chunk)
+            for chunk in chunks
+        )
+        return translated
+    except Exception:
+        return text  # palautetaan alkuperäinen jos käännös epäonnistuu
 
 def get_stock_analysis(symbol, period="6mo"):
     """
@@ -523,6 +543,117 @@ def backtest_strategy(symbol, years=5, initial_capital=10000, commission=0.001, 
 
     except Exception as e:
         return False, f"Virhe backtestingissä: {str(e)}"
+
+# --- Automaattinen yhteenveto ---
+def generate_stock_summary(detail):
+    """
+    Generoi automaattisen analyysiyhteenvedon osakkeen datan perusteella.
+    Palauttaa listan (teksti, väri) -tupleja.
+    """
+    points = []
+
+    price     = detail.get("price")
+    rsi       = detail.get("rsi")
+    sma50     = detail.get("sma50")
+    sma200    = detail.get("sma200")
+    pe        = detail.get("pe_ratio")
+    pb        = detail.get("pb_ratio")
+    roe       = detail.get("roe")
+    div       = detail.get("dividend_yield")
+    de        = detail.get("debt_to_equity")
+    margin    = detail.get("profit_margin")
+    eps       = detail.get("eps")
+    signal    = detail.get("signal", "")
+
+    # Arvostus
+    if pe is not None:
+        if pe < 10:
+            points.append((f"P/E-luku {pe:.1f} viittaa matalaan arvostukseen – osake saattaa olla aliarvostettu.", "green"))
+        elif pe < 20:
+            points.append((f"P/E-luku {pe:.1f} on kohtuullisella tasolla markkinoille.", "blue"))
+        elif pe < 35:
+            points.append((f"P/E-luku {pe:.1f} on korkeahko – markkinat odottavat kasvua.", "orange"))
+        else:
+            points.append((f"P/E-luku {pe:.1f} on korkea – arvostus hinnoittelee merkittävää kasvua.", "red"))
+
+    if pb is not None:
+        if pb < 1:
+            points.append((f"P/B-luku {pb:.2f} on alle tasearvon – mahdollisesti aliarvostettu.", "green"))
+        elif pb < 3:
+            points.append((f"P/B-luku {pb:.2f} on normaalilla tasolla.", "blue"))
+        else:
+            points.append((f"P/B-luku {pb:.2f} on korkea suhteessa kirja-arvoon.", "orange"))
+
+    # Kannattavuus
+    if roe is not None:
+        roe_pct = roe * 100
+        if roe_pct >= 20:
+            points.append((f"ROE {roe_pct:.1f} % on erinomainen – yhtiö tuottaa hyvin omalle pääomalle.", "green"))
+        elif roe_pct >= 10:
+            points.append((f"ROE {roe_pct:.1f} % on hyvällä tasolla.", "blue"))
+        elif roe_pct >= 0:
+            points.append((f"ROE {roe_pct:.1f} % on heikko – pääoman tuotto jää matalaksi.", "orange"))
+        else:
+            points.append((f"ROE {roe_pct:.1f} % on negatiivinen – yhtiö tuottaa tappiota.", "red"))
+
+    if margin is not None:
+        m_pct = margin * 100
+        if m_pct >= 20:
+            points.append((f"Nettomarginaali {m_pct:.1f} % on erinomainen.", "green"))
+        elif m_pct >= 8:
+            points.append((f"Nettomarginaali {m_pct:.1f} % on hyvällä tasolla.", "blue"))
+        elif m_pct >= 0:
+            points.append((f"Nettomarginaali {m_pct:.1f} % on matala.", "orange"))
+        else:
+            points.append((f"Nettomarginaali {m_pct:.1f} % on negatiivinen.", "red"))
+
+    # Tekninen analyysi
+    if rsi is not None:
+        if rsi < 30:
+            points.append((f"RSI {rsi:.0f} – osake on teknisesti ylimyyty, mahdollinen ostomahdollisuus.", "green"))
+        elif rsi > 70:
+            points.append((f"RSI {rsi:.0f} – osake on teknisesti yliostettu, myyntipaine voi kasvaa.", "red"))
+        else:
+            points.append((f"RSI {rsi:.0f} on neutraalilla alueella (30–70).", "blue"))
+
+    if price is not None and sma50 is not None and sma200 is not None:
+        if price > sma50 > sma200:
+            points.append(("Hinta on sekä SMA50- että SMA200-tason yläpuolella – vahva nouseva trendi.", "green"))
+        elif price > sma50:
+            points.append(("Hinta on SMA50-tason yläpuolella – lyhyen aikavälin trendi positiivinen.", "green"))
+        elif price < sma50 < sma200:
+            points.append(("Hinta on sekä SMA50- että SMA200-tason alapuolella – laskeva trendi.", "red"))
+        else:
+            points.append(("Hinta on SMA50-liukuvan keskiarvon alapuolella – heikko lyhyen aikavälin signaali.", "orange"))
+
+    # Velkaantuminen
+    if de is not None:
+        if de < 0.5:
+            points.append((f"Velkaantumisaste D/E {de:.2f} on matala – vakaa tase.", "green"))
+        elif de < 1.5:
+            points.append((f"Velkaantumisaste D/E {de:.2f} on kohtuullinen.", "blue"))
+        else:
+            points.append((f"Velkaantumisaste D/E {de:.2f} on korkea – velkataakka merkittävä.", "red"))
+
+    # Osinko
+    if div is not None and div > 0:
+        div_pct = div  # yfinance palauttaa jo prosentteina
+        if div_pct >= 4:
+            points.append((f"Osinkotuotto {div_pct:.2f} % on korkea – houkutteleva tuloa hakeville sijoittajille.", "green"))
+        elif div_pct >= 2:
+            points.append((f"Osinkotuotto {div_pct:.2f} % on kohtuullinen.", "blue"))
+        else:
+            points.append((f"Osinkotuotto {div_pct:.2f} % on matala.", "orange"))
+    elif div == 0 or div is None:
+        points.append(("Yhtiö ei maksa osinkoa tai tieto ei ole saatavilla.", "gray"))
+
+    # Kokonaissignaali
+    if signal == "OSTA":
+        points.append(("Tekninen kokonaissignaali: OSTA – molemmat indikaattorit suosivat ostoa.", "green"))
+    elif signal == "MYY":
+        points.append(("Tekninen kokonaissignaali: MYY – molemmat indikaattorit suosivat myyntiä.", "red"))
+
+    return points
 
 # --- Kaaviot ---
 def plot_price_chart(df, symbol, trade_history=None):
@@ -881,7 +1012,7 @@ def main():
                         "P/E": round(r["pe_ratio"], 2) if r["pe_ratio"] else "-",
                         "P/B": round(r["pb_ratio"], 2) if r["pb_ratio"] else "-",
                         "ROE %": round(r["roe"] * 100, 1) if r["roe"] else "-",
-                        "Osinko %": round(r["dividend_yield"] * 100, 2) if r["dividend_yield"] else "-",
+                        "Osinko %": round(r["dividend_yield"], 2) if r["dividend_yield"] else "-",
                         "Signaali": f"{r['signal_color']} {r['signal']}"
                     })
 
@@ -918,7 +1049,7 @@ def main():
                 fc2.metric("P/E", f"{round(detail['pe_ratio'],2)}" if detail["pe_ratio"] else "–")
                 fc3.metric("P/B", f"{round(detail['pb_ratio'],2)}" if detail["pb_ratio"] else "–")
                 fc4.metric("ROE", f"{round(detail['roe']*100,1)} %" if detail["roe"] else "–")
-                fc5.metric("Osinko", f"{round(detail['dividend_yield']*100,2)} %" if detail["dividend_yield"] else "–")
+                fc5.metric("Osinko", f"{round(detail['dividend_yield'],2)} %" if detail["dividend_yield"] else "–")
                 fc6.metric("D/E", f"{round(detail['debt_to_equity'],1)}" if detail["debt_to_equity"] else "–")
 
                 fc7, fc8, fc9 = st.columns(3)
@@ -928,10 +1059,33 @@ def main():
                 fc9.metric("Nettomarginaali",
                            f"{round(detail['profit_margin']*100,1)} %" if detail["profit_margin"] else "–")
 
+                # Automaattinen yhteenveto
+                summary_points = generate_stock_summary(detail)
+                if summary_points:
+                    st.markdown("#### 🤖 Automaattinen yhteenveto")
+                    color_map = {
+                        "green":  "#1a9e3f",
+                        "red":    "#d93025",
+                        "orange": "#e07b00",
+                        "blue":   "#1a73e8",
+                        "gray":   "#888888",
+                    }
+                    bullets_html = "".join(
+                        f'<li style="color:{color_map.get(c,"#333")};margin-bottom:6px">{txt}</li>'
+                        for txt, c in summary_points
+                    )
+                    st.markdown(
+                        f'<ul style="padding-left:20px;line-height:1.7">{bullets_html}</ul>',
+                        unsafe_allow_html=True,
+                    )
+                    st.caption("⚠️ Automaattinen analyysi perustuu tilastollisiin sääntöihin – ei sijoitusneuvontaa.")
+
                 # Yrityksen kuvaus
                 if detail.get("summary"):
                     with st.expander("📄 Yrityksen kuvaus"):
-                        st.write(detail["summary"])
+                        with st.spinner("Käännetään suomeksi..."):
+                            fi_summary = translate_to_finnish(detail["summary"])
+                        st.write(fi_summary)
 
                 # Kaaviot: hinta + volume
                 fig_d_price = plot_price_chart(detail["df"], detail["symbol"])
@@ -1257,6 +1411,8 @@ def main():
             st.session_state["fi_data"] = fi_results
             st.session_state["fi_last_sync"] = datetime.now().strftime("%H:%M:%S")
             st.session_state["fi_sync_requested"] = False  # nollaa lippu — ei aja uudelleen
+            st.session_state["fi_signal_filter"] = "Kaikki"  # nollaa signaalisuodatin
+            st.session_state["fi_search"] = ""               # nollaa hakukenttä
 
         if "fi_data" in st.session_state and st.session_state["fi_data"]:
             ts_placeholder.caption(f"Synkronoitu: {st.session_state.get('fi_last_sync', '–')} "
