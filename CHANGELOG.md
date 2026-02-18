@@ -5,6 +5,24 @@ Kaikki projektin merkittävät muutokset dokumentoidaan tähän tiedostoon.
 Formaatti perustuu [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) -standardiin,
 ja projekti noudattaa [Semantic Versioning](https://semver.org/spec/v2.0.0.html) -versiointia.
 
+## [1.4.0] - 2026-02-19
+
+### Lisätty
+- 💾 **Suomen pörssin data tallennetaan SQLiteen** – synkattu lista pysyy muistissa sivun refreshin yli
+  - Ensimmäisen synkrauksen jälkeen taulukko latautuu automaattisesti DB:stä joka kerta
+  - Uusi synkraus vain kun käyttäjä haluaa tuoreet tiedot
+  - Aikaleima näytetään muodossa **pp.kk.vvvv HH:MM:SS**
+- 🗂️ **Monisalkku-tuki (max 5 salkkua)** – useita salkkuja eri sisällöillä
+  - Luo, nimeä uudelleen ja poista salkkuja sidebarista
+  - Aktiivinen salkku valitaan sidebarista – analyysi, lisäys ja poisto kohdistuvat aina siihen
+  - Vanhat osakkeet siirtyvät automaattisesti "Salkku 1":een (migraatio)
+  - Suomen pörssi -listasta lisäys menee aktiiviseen salkkuun
+
+### Korjattu
+- 🔍 **Signaalisuodatin ei nollautunut synkrauksen jälkeen** – korjattu käyttämällä `st.rerun()` ja poistamalla widget-avaimet session_statesta
+- ⏱️ **Synkrauksen aikaleima näkyy heti** sivun avautuessa ilman erillistä synkrauspainiketta
+- 🗑️ **"Lisää kaikki salkkuun" -nappi poistettu** – aiheutti Too Many Requests -virheitä analyysi-välilehdellä
+
 ## [1.3.0] - 2026-02-19
 
 ### Lisätty
