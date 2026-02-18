@@ -32,7 +32,7 @@ import time
 from deep_translator import GoogleTranslator
 
 # Asetukset
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 DB_NAME = "stocks.db"
 
 # --- Suomen pörssin osakkeet (Nasdaq Helsinki / OMXH) ---
@@ -155,56 +155,166 @@ FINNISH_STOCKS = {
 
 # --- Tietokanta ---
 def init_db():
-    """Alustaa SQLite-tietokannan"""
+    """Alustaa SQLite-tietokannan ja ajaa tarvittavat migraatiot."""
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
+
+    # Portfoliot-taulu
     c.execute("""
-        CREATE TABLE IF NOT EXISTS stocks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            symbol TEXT UNIQUE,
-            added_at TEXT
+        CREATE TABLE IF NOT EXISTS portfolios (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            name       TEXT NOT NULL,
+            created_at TEXT
+        )
+    """)
+
+    # Luo oletussalkku jos ei ole portfolioita
+    c.execute("SELECT COUNT(*) FROM portfolios")
+    if c.fetchone()[0] == 0:
+        c.execute(
+            "INSERT INTO portfolios (name, created_at) VALUES (?, ?)",
+            ("Salkku 1", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        )
+
+    # Tarkista onko vanha stocks-taulu ilman portfolio_id:tä
+    existing_cols = [row[1] for row in c.execute("PRAGMA table_info(stocks)").fetchall()]
+    if "portfolio_id" not in existing_cols and "id" in existing_cols:
+        # Migraatio: siirrä vanhat osakkeet portfolioon 1
+        c.execute("ALTER TABLE stocks RENAME TO stocks_old")
+        c.execute("""
+            CREATE TABLE stocks (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol       TEXT NOT NULL,
+                portfolio_id INTEGER NOT NULL DEFAULT 1,
+                added_at     TEXT,
+                UNIQUE(symbol, portfolio_id)
+            )
+        """)
+        c.execute("""
+            INSERT OR IGNORE INTO stocks (symbol, portfolio_id, added_at)
+            SELECT symbol, 1, added_at FROM stocks_old
+        """)
+        c.execute("DROP TABLE stocks_old")
+    elif "portfolio_id" not in existing_cols:
+        # Täysin uusi taulu
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS stocks (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol       TEXT NOT NULL,
+                portfolio_id INTEGER NOT NULL DEFAULT 1,
+                added_at     TEXT,
+                UNIQUE(symbol, portfolio_id)
+            )
+        """)
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS fi_cache (
+            id        INTEGER PRIMARY KEY CHECK (id = 1),
+            data      TEXT,
+            synced_at TEXT
         )
     """)
     conn.commit()
     conn.close()
 
-def get_stocks():
-    """Hakee kaikki osakkeet tietokannasta"""
+def get_portfolios():
+    """Palauttaa kaikki salkut listana (id, name)."""
     conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql("SELECT * FROM stocks ORDER BY symbol", conn)
+    rows = conn.execute("SELECT id, name FROM portfolios ORDER BY id").fetchall()
+    conn.close()
+    return rows  # [(id, name), ...]
+
+def create_portfolio(name: str) -> int:
+    """Luo uuden salkun, palauttaa sen id:n."""
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO portfolios (name, created_at) VALUES (?, ?)",
+        (name, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    )
+    pid = c.lastrowid
+    conn.commit()
+    conn.close()
+    return pid
+
+def rename_portfolio(portfolio_id: int, new_name: str):
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute("UPDATE portfolios SET name = ? WHERE id = ?", (new_name, portfolio_id))
+    conn.commit()
+    conn.close()
+
+def delete_portfolio(portfolio_id: int):
+    """Poistaa salkun ja sen kaikki osakkeet."""
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute("DELETE FROM stocks WHERE portfolio_id = ?", (portfolio_id,))
+    conn.execute("DELETE FROM portfolios WHERE id = ?", (portfolio_id,))
+    conn.commit()
+    conn.close()
+
+def save_fi_cache(results: list, timestamp: str):
+    """Tallentaa Suomen pörssin datan tietokantaan JSON-muodossa."""
+    import json
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO fi_cache (id, data, synced_at)
+        VALUES (1, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET data=excluded.data, synced_at=excluded.synced_at
+    """, (json.dumps(results, ensure_ascii=False), timestamp))
+    conn.commit()
+    conn.close()
+
+def load_fi_cache():
+    """Lataa Suomen pörssin datan tietokannasta. Palauttaa (list, str) tai (None, None)."""
+    import json
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    row = c.execute("SELECT data, synced_at FROM fi_cache WHERE id = 1").fetchone()
+    conn.close()
+    if row:
+        return json.loads(row[0]), row[1]
+    return None, None
+
+def get_stocks(portfolio_id: int = 1):
+    """Hakee salkun osakkeet tietokannasta"""
+    conn = sqlite3.connect(DB_NAME)
+    df = pd.read_sql(
+        "SELECT * FROM stocks WHERE portfolio_id = ? ORDER BY symbol",
+        conn, params=(portfolio_id,)
+    )
     conn.close()
     return df
 
-def add_stock(symbol):
+def add_stock(symbol, portfolio_id: int = 1):
     """Lisää osakkeen tietokantaan"""
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     try:
         c.execute(
-            "INSERT INTO stocks (symbol, added_at) VALUES (?, ?)",
-            (symbol.upper(), datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            "INSERT INTO stocks (symbol, portfolio_id, added_at) VALUES (?, ?, ?)",
+            (symbol.upper(), portfolio_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         )
         conn.commit()
         conn.close()
         return True, "Osake lisätty onnistuneesti!"
     except sqlite3.IntegrityError:
         conn.close()
-        return False, "Osake on jo listalla."
+        return False, "Osake on jo tässä salkussa."
     except Exception as e:
         conn.close()
         return False, f"Virhe: {str(e)}"
 
-def delete_stock(symbol):
+def delete_stock(symbol, portfolio_id: int = 1):
     """Poistaa osakkeen tietokannasta"""
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("DELETE FROM stocks WHERE symbol = ?", (symbol,))
+    c.execute("DELETE FROM stocks WHERE symbol = ? AND portfolio_id = ?", (symbol, portfolio_id))
     conn.commit()
     conn.close()
 
-def add_stocks_bulk(symbols: list[str]) -> tuple[int, int, list[str]]:
+def add_stocks_bulk(symbols: list[str], portfolio_id: int = 1) -> tuple[int, int, list[str]]:
     """
-    Lisää useita osakkeita kerralla.
+    Lisää useita osakkeita kerralla tiettyyn salkkuun.
     Palauttaa (lisätty, jo_olemassa, virheelliset)
     """
     added = 0
@@ -218,8 +328,8 @@ def add_stocks_bulk(symbols: list[str]) -> tuple[int, int, list[str]]:
             continue
         try:
             c.execute(
-                "INSERT INTO stocks (symbol, added_at) VALUES (?, ?)",
-                (symbol, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                "INSERT INTO stocks (symbol, portfolio_id, added_at) VALUES (?, ?, ?)",
+                (symbol, portfolio_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             )
             added += 1
         except sqlite3.IntegrityError:
@@ -884,14 +994,57 @@ def main():
     
     # Sivupalkki - Osakkeiden hallinta
     with st.sidebar:
-        st.header("🗂️ Oma salkku")
+        st.header("🗂️ Salkut")
+
+        portfolios = get_portfolios()
+        portfolio_names = [p[1] for p in portfolios]
+        portfolio_ids   = [p[0] for p in portfolios]
+
+        # Valitse aktiivinen salkku
+        active_idx = st.selectbox(
+            "Aktiivinen salkku",
+            options=range(len(portfolios)),
+            format_func=lambda i: portfolio_names[i],
+            key="active_portfolio_idx",
+        )
+        active_portfolio_id   = portfolio_ids[active_idx]
+        active_portfolio_name = portfolio_names[active_idx]
+
+        # Salkun hallinta: nimeä uudelleen / poista
+        with st.expander("✏️ Hallitse salkkuja"):
+            # Uudelleennimeä
+            new_name = st.text_input("Uusi nimi aktiiviselle salkulle", value=active_portfolio_name, key="rename_input")
+            if st.button("💾 Tallenna nimi", key="rename_btn"):
+                if new_name.strip():
+                    rename_portfolio(active_portfolio_id, new_name.strip())
+                    st.rerun()
+
+            # Poista salkku (ei sallita jos vain yksi jäljellä)
+            if len(portfolios) > 1:
+                if st.button(f"🗑️ Poista '{active_portfolio_name}'", key="del_portfolio_btn"):
+                    delete_portfolio(active_portfolio_id)
+                    st.rerun()
+            else:
+                st.caption("Viimeistä salkkua ei voi poistaa.")
+
+            # Luo uusi salkku
+            st.markdown("---")
+            if len(portfolios) < 5:
+                new_pname = st.text_input("Uuden salkun nimi", placeholder="esim. Kasvu-salkku", key="new_portfolio_name")
+                if st.button("➕ Luo uusi salkku", key="create_portfolio_btn"):
+                    if new_pname.strip():
+                        create_portfolio(new_pname.strip())
+                        st.rerun()
+            else:
+                st.info("Maksimimäärä (5) salkkuja saavutettu.")
 
         # Lisää yksittäinen osake
+        st.markdown("---")
         with st.form("add_stock_form"):
             new_symbol = st.text_input("Osaketunnus (esim. AAPL, NOKIA.HE)", "").upper()
             submit = st.form_submit_button("➕ Lisää osake")
             if submit and new_symbol:
-                success, message = add_stock(new_symbol)
+                success, message = add_stock(new_symbol, active_portfolio_id)
                 if success:
                     st.success(message)
                     st.rerun()
@@ -922,7 +1075,7 @@ def main():
                 st.info(f"Löydetty {len(symbols_to_import)} tunnusta: {', '.join(symbols_to_import[:10])}" +
                         (f" ... (+{len(symbols_to_import)-10} lisää)" if len(symbols_to_import) > 10 else ""))
                 if st.button("✅ Tuo kaikki salkkuun", key="import_file"):
-                    added, skipped, errs = add_stocks_bulk(symbols_to_import)
+                    added, skipped, errs = add_stocks_bulk(symbols_to_import, active_portfolio_id)
                     st.success(f"Lisätty: {added}, jo listalla: {skipped}")
                     if errs:
                         st.warning("Virheitä: " + "; ".join(errs))
@@ -932,23 +1085,23 @@ def main():
 
         # Näytä salkku
         st.markdown("---")
-        st.subheader("📋 Osakkeesi")
-        stocks_df = get_stocks()
+        st.subheader(f"📋 {active_portfolio_name}")
+        stocks_df_sidebar = get_stocks(active_portfolio_id)
 
-        if not stocks_df.empty:
-            for _, row in stocks_df.iterrows():
+        if not stocks_df_sidebar.empty:
+            for _, row in stocks_df_sidebar.iterrows():
                 col1, col2 = st.columns([3, 1])
                 with col1:
                     st.text(row["symbol"])
                 with col2:
-                    if st.button("🗑️", key=f"del_{row['symbol']}"):
-                        delete_stock(row["symbol"])
+                    if st.button("🗑️", key=f"del_{active_portfolio_id}_{row['symbol']}"):
+                        delete_stock(row["symbol"], active_portfolio_id)
                         st.rerun()
         else:
             st.info("Ei osakkeita. Lisää ensimmäinen osake yllä.")
-    
+
     # Päänäkymä
-    stocks_df = get_stocks()
+    stocks_df = get_stocks(active_portfolio_id)
 
     # Välilehdet — salkku-välilehti ei vaadi osakkeita etukäteen
     tab1, tab2, tab3, tab4 = st.tabs([
@@ -960,7 +1113,7 @@ def main():
 
     # --- ANALYYSI-välilehti ---
     with tab1:
-        st.header("📊 Päivittäinen analyysi – Oma salkku")
+        st.header(f"📊 Päivittäinen analyysi – {active_portfolio_name}")
 
         if stocks_df.empty:
             st.info("👈 Lisää osakkeita vasemmalta aloittaaksesi analyysin")
@@ -1304,6 +1457,13 @@ def main():
 
     # --- SUOMEN PÖRSSI -välilehti ---
     with tab3:
+        # Lataa tallennettu data DB:stä session_stateen jos sivu on refreshattu
+        if "fi_data" not in st.session_state:
+            cached_data, cached_ts = load_fi_cache()
+            if cached_data:
+                st.session_state["fi_data"] = cached_data
+                st.session_state["fi_last_sync"] = cached_ts
+
         st.header("🇫🇮 Suomen pörssi – Nasdaq Helsinki (OMXH)")
         st.markdown(
             f"Lista sisältää **{len(FINNISH_STOCKS)}** Helsingin pörssin osaketta. "
@@ -1329,27 +1489,20 @@ def main():
                 key="fi_refresh_interval",
             )
 
-        col_btn1, col_btn2, col_btn3, col_ts = st.columns([1, 1, 1, 3])
+        col_btn1, col_btn2, col_ts = st.columns([1, 1, 4])
         with col_btn1:
             sync_all = st.button("🔄 Synkkaa kaikki", key="fi_sync")
         with col_btn2:
-            add_all_btn = st.button("➕ Lisää kaikki salkkuun", key="fi_add_all")
-        with col_btn3:
             clear_cache_btn = st.button("🗑️ Tyhjennä cache", key="fi_clear_cache")
         with col_ts:
             ts_placeholder = st.empty()
+            saved_ts = st.session_state.get("fi_last_sync")
+            if saved_ts:
+                ts_placeholder.caption(f"🕒 Viimeksi synkattu: **{saved_ts}**")
 
         if clear_cache_btn:
             fetch_stock_data.clear()
             st.toast("Cache tyhjennetty!", icon="🗑️")
-
-        if add_all_btn:
-            with st.spinner("Lisätään kaikki Suomen pörssin osakkeet salkkuun..."):
-                added, skipped, errs = add_stocks_bulk(list(FINNISH_STOCKS.keys()))
-            st.success(f"✅ Lisätty: {added} osaketta, jo listalla: {skipped}")
-            if errs:
-                st.warning("Virheitä: " + "; ".join(errs))
-            st.rerun()
 
         # Hae data — VAIN kun nappia painetaan manuaalisesti tai auto-refresh on päällä
         if sync_all or fi_auto_refresh:
@@ -1409,15 +1562,14 @@ def main():
 
             progress_bar.empty()
             st.session_state["fi_data"] = fi_results
-            st.session_state["fi_last_sync"] = datetime.now().strftime("%H:%M:%S")
-            st.session_state["fi_sync_requested"] = False  # nollaa lippu — ei aja uudelleen
-            st.session_state["fi_signal_filter"] = "Kaikki"  # nollaa signaalisuodatin
-            st.session_state["fi_search"] = ""               # nollaa hakukenttä
+            st.session_state["fi_last_sync"] = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+            save_fi_cache(fi_results, st.session_state["fi_last_sync"])
+            st.session_state["fi_sync_requested"] = False
+            st.session_state.pop("fi_signal_filter", None)
+            st.session_state.pop("fi_search", None)
+            st.rerun()
 
         if "fi_data" in st.session_state and st.session_state["fi_data"]:
-            ts_placeholder.caption(f"Synkronoitu: {st.session_state.get('fi_last_sync', '–')} "
-                                   f"({'Live 🟢' if fi_auto_refresh else 'Manuaalinen'})")
-
             fi_df = pd.DataFrame(st.session_state["fi_data"])
 
             # Suodatin — lisätty signaali-suodatin
@@ -1477,8 +1629,8 @@ def main():
                 st.write("")
                 st.write("")
                 if st.button("➕ Lisää valitut salkkuun", key="fi_add_selected") and selected_fi:
-                    added, skipped, errs = add_stocks_bulk(selected_fi)
-                    st.success(f"Lisätty: {added}, jo listalla: {skipped}")
+                    added, skipped, errs = add_stocks_bulk(selected_fi, active_portfolio_id)
+                    st.success(f"Lisätty '{active_portfolio_name}': {added}, jo listalla: {skipped}")
                     st.rerun()
 
             # CSV-lataus
