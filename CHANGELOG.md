@@ -5,6 +5,56 @@ Kaikki projektin merkittävät muutokset dokumentoidaan tähän tiedostoon.
 Formaatti perustuu [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) -standardiin,
 ja projekti noudattaa [Semantic Versioning](https://semver.org/spec/v2.0.0.html) -versiointia.
 
+## [1.6.1] - 2026-02-22
+
+### Korjattu
+- **`sqlite3.OperationalError: database is locked`** – lisätty `timeout=10` `init_db`-yhteyteen, jotta lyhyet lukitukset eivät kaada käynnistystä
+- **`sqlite3.IntegrityError: UNIQUE constraint failed: users.username`** – migraatio tarkistaa nyt ensin onko `jukka` jo olemassa ennen kuin yrittää nimetä `admin`-tunnuksen uudelleen
+- **Admin-salasana ei toiminut** – `init_db` varmistaa nyt aina että `jukka`-käyttäjällä on oikea hash; lisätty suora DB-korjaus olemassa olevalle tietokannalle
+- **Otsikko jäi yläpalkin alle** – kirjautumis- ja päänäkymän `padding-top` kasvatettu `1rem/1.5rem` → `4rem`
+
+## [1.6.0] - 2026-02-21
+
+### Lisätty
+- 🔒 **Roolipohjainen käyttäjähallinta** – Admin- ja User-roolit
+  - `role`-sarake `users`-tauluun (oletusarvo `user`), automaattinen migraatio
+  - Profiilissa näytetään roolimerkki: 🔒 Admin tai 👤 User
+  - Admin-käyttäjällä profiilissa erillinen käyttäjänhallintaosio:
+    - Lista kaikista käyttäjistä (tunnus, kutsumanimi, rooli)
+    - Käyttäjän poisto (ei voi poistaa itseään)
+    - Uuden käyttäjän luomislomake (tunnus, kutsumanimi, sähköposti, rooli, salasana)
+  - Vain admin voi luoda uusia käyttäjiä – rekisteröitymislomake poistettu kirjautumisnäkymästä
+- 👥 **Testikäyttäjä `testuser`** – luodaan automaattisesti (rooli: user, salasana: testpass)
+
+### Muutettu
+- `get_user_by_username` palauttaa nyt myös `role`-sarakkeen (indeksi 5)
+- `create_user` ottaa nyt valinnaisen `role`-parametrin (oletus `"user"`)
+- Kirjautuminen tallentaa `role` session_stateen
+- Kirjaudu ulos tyhjentää myös `role`-avaimen session_statesta
+
+## [1.5.0] - 2026-02-21
+
+### Lisätty
+- 🔐 **Käyttäjähallinta ja kirjautuminen** – sovellus on nyt kirjautumisen takana
+  - Kirjautumisnäkymä käyttäjätunnuksella ja salasanalla
+  - Rekisteröityminen uudelle tilille kirjautumisnäkymästä
+  - Salasanat tallennetaan SHA-256-tiivisteenä (ei selkotekstinä)
+  - `users`-taulu SQLiteen, oletuskäyttäjä luodaan automaattisesti ensimmäisellä käynnistyksellä
+- 👤 **Profiilisivu sivupalkissa** – kirjautuneen käyttäjän hallinta
+  - Kutsumanimn ja sähköpostin muuttaminen
+  - Salasanan vaihtaminen (vanhan salasanan vahvistus vaaditaan)
+  - Kirjaudu ulos -painike
+- 📊 **Välilehtijärjestys muutettu** – Analyysi → Suomen pörssi → Backtesting → Tietoa
+- 🎯 **Backtesting-osakevalinta** – voi ajaa yksittäiselle osakkeelle tai kaikille salkun osakkeille
+- 📝 **GitHub Copilot -ohjeet** – lisätty `.github/copilot-instructions.md` AI-avusteista kehitystä varten
+
+### Muutettu
+- ❌ **Osakkeen lisäyslomake poistettu analyysistä** – osakkeet lisätään vain Suomen pörssi -välilehdeltä
+- 📱 **Otsikko pienennetty mobiilissa** – CSS media query pienentää h1-fonttia alle 768 px leveyksillä
+- 📋 **"Päivittäinen analyysi" -otsikko pienennetty** – `st.header` → `st.subheader` tilansäästön vuoksi
+- ⛔ **Automaattinen päivitys poistettu analyysi-välilehdeltä** – toggle, välivalikko ja refresh-silmukka poistettu
+- 🇨🇳 **Tyhjän salkun ohjausviestit päivitetty** – ohjataan nyt Suomen pörssi -välilehteen
+
 ## [1.4.0] - 2026-02-19
 
 ### Lisätty
