@@ -1,6 +1,6 @@
 """
 Osakeanalyysi Web-työkalu
-Versio: 1.3.0
+Versio: 1.5.0
 Teknologiat: Python, Streamlit, SQLite, yfinance, pandas, ta
 
 Ominaisuudet:
@@ -29,10 +29,11 @@ from datetime import datetime, timedelta
 import numpy as np
 import io
 import time
+import hashlib
 from deep_translator import GoogleTranslator
 
 # Asetukset
-VERSION = "1.4.0"
+VERSION = "1.6.1"
 DB_NAME = "stocks.db"
 
 # --- Suomen pörssin osakkeet (Nasdaq Helsinki / OMXH) ---
@@ -156,25 +157,15 @@ FINNISH_STOCKS = {
 # --- Tietokanta ---
 def init_db():
     """Alustaa SQLite-tietokannan ja ajaa tarvittavat migraatiot."""
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_NAME, timeout=10)
     c = conn.cursor()
 
     # Portfoliot-taulu
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS portfolios (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            name       TEXT NOT NULL,
-            created_at TEXT
-        )
-    """)
 
-    # Luo oletussalkku jos ei ole portfolioita
-    c.execute("SELECT COUNT(*) FROM portfolios")
-    if c.fetchone()[0] == 0:
-        c.execute(
-            "INSERT INTO portfolios (name, created_at) VALUES (?, ?)",
-            ("Salkku 1", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        )
+    # Migraatio: lisää user_id-sarake jos puuttuu
+    portfolio_cols = [row[1] for row in c.execute("PRAGMA table_info(portfolios)").fetchall()]
+    if "user_id" not in portfolio_cols:
+        c.execute("ALTER TABLE portfolios ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1")
 
     # Tarkista onko vanha stocks-taulu ilman portfolio_id:tä
     existing_cols = [row[1] for row in c.execute("PRAGMA table_info(stocks)").fetchall()]
@@ -214,103 +205,270 @@ def init_db():
             synced_at TEXT
         )
     """)
+
+    # Käyttäjät-taulu
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            username     TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            display_name TEXT,
+            email        TEXT,
+            role         TEXT NOT NULL DEFAULT 'user',
+            created_at   TEXT
+        )
+    """)
+    # Migraatio: lisää role-sarake jos puuttuu
+    user_cols = [row[1] for row in c.execute("PRAGMA table_info(users)").fetchall()]
+    if "role" not in user_cols:
+        c.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
+        # Aseta jukka adminiksi
+        c.execute("UPDATE users SET role='admin' WHERE username='jukka'")
+
+    # Luo oletuskäyttäjä jos ei käyttäjiä
+    c.execute("SELECT COUNT(*) FROM users")
+    if c.fetchone()[0] == 0:
+        default_pw = hashlib.sha256("!#nassu".encode()).hexdigest()
+        c.execute(
+            "INSERT INTO users (username, password_hash, display_name, email, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            ("jukka", default_pw, "Jukka", "", "admin", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        )
+    # Migraatio: päivitä vanhan "admin"-oletuskäyttäjän tunnukset jos jukka ei vielä ole olemassa
+    else:
+        jukka_exists = c.execute("SELECT 1 FROM users WHERE username='jukka'").fetchone()
+        if not jukka_exists:
+            new_pw = hashlib.sha256("!#nassu".encode()).hexdigest()
+            c.execute(
+                "UPDATE users SET username=?, password_hash=?, display_name=?, role=? WHERE username=? AND display_name=?",
+                ("jukka", new_pw, "Jukka", "admin", "admin", "Administraattori")
+            )
+        # Varmista että jukka on admin ja salasana on oikein
+        correct_pw = hashlib.sha256("!#nassu".encode()).hexdigest()
+        c.execute(
+            "UPDATE users SET password_hash=?, display_name='Jukka', role='admin' WHERE username='jukka' AND password_hash != ?",
+            (correct_pw, correct_pw)
+        )
+        c.execute("UPDATE users SET role='admin' WHERE username='jukka'")
+
+    # Luo testikäyttäjä jos ei ole
+    test_pw = hashlib.sha256("testpass".encode()).hexdigest()
+    c.execute(
+        "INSERT OR IGNORE INTO users (username, password_hash, display_name, email, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        ("testuser", test_pw, "Test User", "", "user", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    )
+
     conn.commit()
     conn.close()
 
-def get_portfolios():
-    """Palauttaa kaikki salkut listana (id, name)."""
+# --- Käyttäjäfunktiot ---
+
+def _hash_pw(password: str) -> str:
+    """Laskee SHA-256-tiivisteen annetulle salasanalle."""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def get_user_by_username(username: str):
+    """Palauttaa käyttäjärivin tai None."""
     conn = sqlite3.connect(DB_NAME)
-    rows = conn.execute("SELECT id, name FROM portfolios ORDER BY id").fetchall()
-    conn.close()
+    try:
+        row = conn.execute(
+            "SELECT id, username, password_hash, display_name, email, role FROM users WHERE username = ?",
+            (username,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return row  # (id, username, password_hash, display_name, email, role)
+
+def get_all_users() -> list[tuple]:
+    """Palauttaa kaikki käyttäjät listana (id, username, display_name, role). Vain adminille."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        rows = conn.execute(
+            "SELECT id, username, display_name, role FROM users ORDER BY id"
+        ).fetchall()
+    finally:
+        conn.close()
+    return rows
+
+def delete_user(user_id: int) -> None:
+    """Poistaa käyttäjän ja hänen salkkujensa osakkeet tietokannasta."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        conn.execute("DELETE FROM stocks WHERE portfolio_id IN (SELECT id FROM portfolios WHERE user_id=?)", (user_id,))
+        conn.execute("DELETE FROM portfolios WHERE user_id=?", (user_id,))
+        conn.execute("DELETE FROM users WHERE id=?", (user_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+def verify_password(username: str, password: str) -> bool:
+    """Tarkistaa käyttäjätunnuksen ja salasanan."""
+    row = get_user_by_username(username)
+    if row is None:
+        return False
+    return row[2] == _hash_pw(password)
+
+def create_user(username: str, password: str, display_name: str = "", email: str = "", role: str = "user") -> tuple[bool, str]:
+    """Luo uuden käyttäjän. Palauttaa (onnistui, viesti)."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        conn.execute(
+            "INSERT INTO users (username, password_hash, display_name, email, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (username.strip(), _hash_pw(password), display_name.strip(), email.strip(), role, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        )
+        conn.commit()
+        return True, "Käyttäjä luotu!"
+    except sqlite3.IntegrityError:
+        return False, "Käyttäjätunnus on jo käytössä."
+    finally:
+        conn.close()
+
+def update_user_profile(user_id: int, display_name: str, email: str) -> None:
+    """Päivittää käyttäjän kutsumanian ja sähköpostiosoitteen tietokantaan."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        conn.execute(
+            "UPDATE users SET display_name=?, email=? WHERE id=?",
+            (display_name.strip(), email.strip(), user_id)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+def change_password(user_id: int, old_password: str, new_password: str) -> tuple[bool, str]:
+    """Vaihtaa käyttäjän salasanan. Vanhan salasanan on täsmättävä."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        row = conn.execute("SELECT password_hash FROM users WHERE id=?", (user_id,)).fetchone()
+        if row is None or row[0] != _hash_pw(old_password):
+            return False, "Vanha salasana on väärin."
+        conn.execute("UPDATE users SET password_hash=? WHERE id=?", (_hash_pw(new_password), user_id))
+        conn.commit()
+    finally:
+        conn.close()
+    return True, "Salasana vaihdettu!"
+
+# ---------------------------------------------
+
+def get_portfolios(user_id: int) -> list[tuple]:
+    """Palauttaa käyttäjän omat salkut listana (id, name)."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        rows = conn.execute(
+            "SELECT id, name FROM portfolios WHERE user_id = ? ORDER BY id",
+            (user_id,)
+        ).fetchall()
+    finally:
+        conn.close()
     return rows  # [(id, name), ...]
 
-def create_portfolio(name: str) -> int:
-    """Luo uuden salkun, palauttaa sen id:n."""
+def ensure_user_portfolio(user_id: int) -> None:
+    """Luo käyttäjälle oletussalkun jos hänellä ei ole yhtään salkkua."""
+    if not get_portfolios(user_id):
+        create_portfolio("Salkku 1", user_id)
+
+def ensure_user_portfolio_by_uname(username: str) -> None:
+    """Luo oletussalkun käyttäjälle käyttäjänimen perusteella (admin-käyttöön)."""
+    row = get_user_by_username(username)
+    if row:
+        ensure_user_portfolio(row[0])
+
+def create_portfolio(name: str, user_id: int) -> int:
+    """Luo uuden salkun käyttäjälle, palauttaa sen id:n."""
     conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO portfolios (name, created_at) VALUES (?, ?)",
-        (name, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    )
-    pid = c.lastrowid
-    conn.commit()
-    conn.close()
+    try:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO portfolios (name, user_id, created_at) VALUES (?, ?, ?)",
+            (name, user_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        )
+        pid = c.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
     return pid
 
-def rename_portfolio(portfolio_id: int, new_name: str):
+def rename_portfolio(portfolio_id: int, new_name: str) -> None:
+    """Nimeää salkun uudelleen."""
     conn = sqlite3.connect(DB_NAME)
-    conn.execute("UPDATE portfolios SET name = ? WHERE id = ?", (new_name, portfolio_id))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("UPDATE portfolios SET name = ? WHERE id = ?", (new_name, portfolio_id))
+        conn.commit()
+    finally:
+        conn.close()
 
-def delete_portfolio(portfolio_id: int):
+def delete_portfolio(portfolio_id: int) -> None:
     """Poistaa salkun ja sen kaikki osakkeet."""
     conn = sqlite3.connect(DB_NAME)
-    conn.execute("DELETE FROM stocks WHERE portfolio_id = ?", (portfolio_id,))
-    conn.execute("DELETE FROM portfolios WHERE id = ?", (portfolio_id,))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("DELETE FROM stocks WHERE portfolio_id = ?", (portfolio_id,))
+        conn.execute("DELETE FROM portfolios WHERE id = ?", (portfolio_id,))
+        conn.commit()
+    finally:
+        conn.close()
 
-def save_fi_cache(results: list, timestamp: str):
+def save_fi_cache(results: list, timestamp: str) -> None:
     """Tallentaa Suomen pörssin datan tietokantaan JSON-muodossa."""
     import json
     conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO fi_cache (id, data, synced_at)
-        VALUES (1, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET data=excluded.data, synced_at=excluded.synced_at
-    """, (json.dumps(results, ensure_ascii=False), timestamp))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("""
+            INSERT INTO fi_cache (id, data, synced_at)
+            VALUES (1, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET data=excluded.data, synced_at=excluded.synced_at
+        """, (json.dumps(results, ensure_ascii=False), timestamp))
+        conn.commit()
+    finally:
+        conn.close()
 
-def load_fi_cache():
+def load_fi_cache() -> tuple[list | None, str | None]:
     """Lataa Suomen pörssin datan tietokannasta. Palauttaa (list, str) tai (None, None)."""
     import json
     conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    row = c.execute("SELECT data, synced_at FROM fi_cache WHERE id = 1").fetchone()
-    conn.close()
+    try:
+        row = conn.execute("SELECT data, synced_at FROM fi_cache WHERE id = 1").fetchone()
+    finally:
+        conn.close()
     if row:
         return json.loads(row[0]), row[1]
     return None, None
 
-def get_stocks(portfolio_id: int = 1):
-    """Hakee salkun osakkeet tietokannasta"""
+def get_stocks(portfolio_id: int = 1) -> pd.DataFrame:
+    """Hakee salkun osakkeet tietokannasta."""
     conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql(
-        "SELECT * FROM stocks WHERE portfolio_id = ? ORDER BY symbol",
-        conn, params=(portfolio_id,)
-    )
-    conn.close()
+    try:
+        df = pd.read_sql(
+            "SELECT * FROM stocks WHERE portfolio_id = ? ORDER BY symbol",
+            conn, params=(portfolio_id,)
+        )
+    finally:
+        conn.close()
     return df
 
-def add_stock(symbol, portfolio_id: int = 1):
-    """Lisää osakkeen tietokantaan"""
+def add_stock(symbol: str, portfolio_id: int = 1) -> tuple[bool, str]:
+    """Lisää osakkeen tietokantaan. Palauttaa (onnistui, viesti)."""
     conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
     try:
-        c.execute(
+        conn.execute(
             "INSERT INTO stocks (symbol, portfolio_id, added_at) VALUES (?, ?, ?)",
             (symbol.upper(), portfolio_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         )
         conn.commit()
-        conn.close()
         return True, "Osake lisätty onnistuneesti!"
     except sqlite3.IntegrityError:
-        conn.close()
         return False, "Osake on jo tässä salkussa."
     except Exception as e:
+        return False, f"Virhe: {e}"
+    finally:
         conn.close()
-        return False, f"Virhe: {str(e)}"
 
-def delete_stock(symbol, portfolio_id: int = 1):
-    """Poistaa osakkeen tietokannasta"""
+def delete_stock(symbol: str, portfolio_id: int = 1) -> None:
+    """Poistaa osakkeen tietokannasta."""
     conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("DELETE FROM stocks WHERE symbol = ? AND portfolio_id = ?", (symbol, portfolio_id))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("DELETE FROM stocks WHERE symbol = ? AND portfolio_id = ?", (symbol, portfolio_id))
+        conn.commit()
+    finally:
+        conn.close()
 
 def add_stocks_bulk(symbols: list[str], portfolio_id: int = 1) -> tuple[int, int, list[str]]:
     """
@@ -351,22 +509,22 @@ def parse_symbols_from_text(text: str) -> list[str]:
 
 # --- Tekninen analyysi ---
 @st.cache_data(ttl=300)
-def fetch_stock_data(symbol, period="6mo"):
-    """Hakee osakekurssit ja info Yahoosta (välimuistissa 5 min)"""
+def fetch_stock_data(symbol: str, period: str = "6mo") -> tuple[pd.DataFrame, dict]:
+    """Hakee osakekurssit ja info Yahoosta (välimuistissa 5 min)."""
     stock = yf.Ticker(symbol)
     df = stock.history(period=period)
     info = stock.info
     return df, info
 
 @st.cache_data(ttl=300)
-def fetch_stock_history(symbol, start_date, end_date):
-    """Hakee pitkän historian backtestingiä varten (välimuistissa 5 min)"""
+def fetch_stock_history(symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
+    """Hakee pitkän historian backtestingiä varten (välimuistissa 5 min)."""
     stock = yf.Ticker(symbol)
     df = stock.history(start=start_date, end=end_date)
     return df
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def translate_to_finnish(text):
+def translate_to_finnish(text: str) -> str:
     """Kääntää tekstin suomeksi Google Translaten avulla. Välimuistissa 24h."""
     if not text:
         return text
@@ -380,7 +538,7 @@ def translate_to_finnish(text):
             for chunk in chunks
         )
         return translated
-    except Exception:
+    except Exception as e:  # noqa: BLE001
         return text  # palautetaan alkuperäinen jos käännös epäonnistuu
 
 def get_stock_analysis(symbol, period="6mo"):
@@ -978,6 +1136,129 @@ def plot_volume_chart(df, symbol):
     )
     return fig
 
+# --- Kirjautumissivu ---
+def show_login_page():
+    st.markdown("""
+<style>
+.block-container { padding-top: 4rem !important; }
+.app-header h2 { margin: 0 0 0.1rem 0; font-size: 1.4rem; font-weight: 700; }
+.app-header p  { margin: 0 0 1rem 0; font-size: 0.85rem; color: #666; }
+.login-box { max-width: 420px; }
+@media (max-width: 768px) {
+    .app-header h2 { font-size: 1.1rem !important; }
+}
+</style>
+<div class="app-header">
+  <h2>📈 Osakeanalyysi-työkalu v""" + VERSION + """</h2>
+  <p>Tekninen analyysi, backtesting ja päivittäiset signaalit</p>
+</div>
+""", unsafe_allow_html=True)
+
+    with st.form("login_form"):
+        username = st.text_input("Käyttäjätunnus")
+        password = st.text_input("Salasana", type="password")
+        submitted = st.form_submit_button("🔓 Kirjaudu", use_container_width=True)
+        if submitted:
+            if verify_password(username.strip(), password):
+                row = get_user_by_username(username.strip())
+                st.session_state["logged_in"] = True
+                st.session_state["user_id"] = row[0]
+                st.session_state["username"] = row[1]
+                st.session_state["display_name"] = row[3] or row[1]
+                st.session_state["email"] = row[4] or ""
+                st.session_state["role"] = row[5]
+                ensure_user_portfolio(row[0])
+                st.rerun()
+            else:
+                st.error("❌ Väärä käyttäjätunnus tai salasana.")
+
+
+def show_profile_sidebar():
+    """Näyttää käyttäjäprofiilin sivupalkissa."""
+    display = st.session_state.get("display_name", st.session_state.get("username", ""))
+    user_id = st.session_state["user_id"]
+    role    = st.session_state.get("role", "user")
+    role_badge = "🔒 Admin" if role == "admin" else "👤 User"
+
+    with st.expander(f"{role_badge} {display}", expanded=False):
+        st.markdown("### Profiili")
+        with st.form("profile_form"):
+            upd_display = st.text_input("Kutsumanimi", value=st.session_state.get("display_name", ""))
+            upd_email   = st.text_input("Sähköposti",  value=st.session_state.get("email", ""))
+            if st.form_submit_button("💾 Tallenna", use_container_width=True):
+                update_user_profile(user_id, upd_display, upd_email)
+                st.session_state["display_name"] = upd_display
+                st.session_state["email"] = upd_email
+                st.success("Tallennettu!")
+                st.rerun()
+
+        st.markdown("---")
+        st.markdown("### Vaihda salasana")
+        with st.form("pw_form"):
+            old_pw  = st.text_input("Vanha salasana", type="password")
+            new_pw1 = st.text_input("Uusi salasana", type="password")
+            new_pw2 = st.text_input("Uusi salasana uudelleen", type="password")
+            if st.form_submit_button("🔄 Vaihda", use_container_width=True):
+                if new_pw1 != new_pw2:
+                    st.error("Salasanat eivät täsmää.")
+                elif len(new_pw1) < 4:
+                    st.error("Salasanan on oltava vähintään 4 merkkiä.")
+                else:
+                    ok, msg = change_password(user_id, old_pw, new_pw1)
+                    if ok:
+                        st.success(msg)
+                    else:
+                        st.error(msg)
+
+        # Admin: käyttäjänhallinta
+        if role == "admin":
+            st.markdown("---")
+            st.markdown("🔒 **Käyttäjänhallinta**")
+            users = get_all_users()
+            for u in users:
+                uid, uname, udisp, urole = u
+                badge = "🔒" if urole == "admin" else "👤"
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.caption(f"{badge} **{uname}** ({udisp or '-'})")
+                with col2:
+                    if uid != user_id:
+                        if st.button("🗑️", key=f"del_user_{uid}", help=f"Poista {uname}"):
+                            delete_user(uid)
+                            st.rerun()
+
+            st.markdown("**Luo uusi käyttäjä**")
+            with st.form("admin_create_user"):
+                nu_username = st.text_input("Käyttäjätunnus")
+                nu_display  = st.text_input("Kutsumanimi")
+                nu_email    = st.text_input("Sähköposti")
+                nu_role     = st.selectbox("Rooli", options=["user", "admin"],
+                                           format_func=lambda r: "👤 User" if r == "user" else "🔒 Admin")
+                nu_pw1      = st.text_input("Salasana", type="password")
+                nu_pw2      = st.text_input("Salasana uudelleen", type="password")
+                if st.form_submit_button("➕ Luo käyttäjä", use_container_width=True):
+                    if not nu_username.strip():
+                        st.error("Käyttäjätunnus ei voi olla tyhjä.")
+                    elif len(nu_pw1) < 4:
+                        st.error("Salasanan on oltava vähintään 4 merkkiä.")
+                    elif nu_pw1 != nu_pw2:
+                        st.error("Salasanat eivät täsmää.")
+                    else:
+                        ok, msg = create_user(nu_username, nu_pw1, nu_display, nu_email, nu_role)
+                        if ok:
+                            ensure_user_portfolio_by_uname(nu_username)
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
+
+        st.markdown("---")
+        if st.button("🚪 Kirjaudu ulos", use_container_width=True):
+            for key in ["logged_in", "user_id", "username", "display_name", "email", "role"]:
+                st.session_state.pop(key, None)
+            st.rerun()
+
+
 # --- Streamlit UI ---
 def main():
     st.set_page_config(
@@ -985,18 +1266,38 @@ def main():
         page_icon="📈",
         layout="wide"
     )
-    
-    st.title(f"📈 Osakeanalyysi-työkalu v{VERSION}")
-    st.markdown("**Tekninen analyysi, backtesting ja päivittäiset signaalit**")
-    
+
     # Alusta tietokanta
     init_db()
+
+    # Tarkista kirjautuminen
+    if not st.session_state.get("logged_in", False):
+        show_login_page()
+        st.stop()
+
+    st.markdown("""
+<style>
+/* Pienennä ylätila */
+.block-container { padding-top: 4rem !important; }
+/* Otsikkofonttikoko */
+.app-header h2 { margin: 0 0 0.1rem 0; font-size: 1.4rem; font-weight: 700; }
+.app-header p  { margin: 0; font-size: 0.85rem; color: #666; }
+@media (max-width: 768px) {
+    .app-header h2 { font-size: 1.1rem !important; }
+}
+</style>
+<div class="app-header">
+  <h2>📈 Osakeanalyysi-työkalu v""" + VERSION + """</h2>
+  <p>Tekninen analyysi, backtesting ja päivittäiset signaalit</p>
+</div>
+""", unsafe_allow_html=True)
     
     # Sivupalkki - Osakkeiden hallinta
     with st.sidebar:
+        show_profile_sidebar()
         st.header("🗂️ Salkut")
 
-        portfolios = get_portfolios()
+        portfolios = get_portfolios(st.session_state["user_id"])
         portfolio_names = [p[1] for p in portfolios]
         portfolio_ids   = [p[0] for p in portfolios]
 
@@ -1033,23 +1334,10 @@ def main():
                 new_pname = st.text_input("Uuden salkun nimi", placeholder="esim. Kasvu-salkku", key="new_portfolio_name")
                 if st.button("➕ Luo uusi salkku", key="create_portfolio_btn"):
                     if new_pname.strip():
-                        create_portfolio(new_pname.strip())
+                        create_portfolio(new_pname.strip(), st.session_state["user_id"])
                         st.rerun()
             else:
                 st.info("Maksimimäärä (5) salkkuja saavutettu.")
-
-        # Lisää yksittäinen osake
-        st.markdown("---")
-        with st.form("add_stock_form"):
-            new_symbol = st.text_input("Osaketunnus (esim. AAPL, NOKIA.HE)", "").upper()
-            submit = st.form_submit_button("➕ Lisää osake")
-            if submit and new_symbol:
-                success, message = add_stock(new_symbol, active_portfolio_id)
-                if success:
-                    st.success(message)
-                    st.rerun()
-                else:
-                    st.error(message)
 
         # --- Import txt-tiedostosta ---
         st.markdown("---")
@@ -1098,40 +1386,26 @@ def main():
                         delete_stock(row["symbol"], active_portfolio_id)
                         st.rerun()
         else:
-            st.info("Ei osakkeita. Lisää ensimmäinen osake yllä.")
+            st.info("Ei osakkeita. Lisää osakkeita 🇫🇮 Suomen pörssi -välilehdestä.")
 
     # Päänäkymä
     stocks_df = get_stocks(active_portfolio_id)
 
     # Välilehdet — salkku-välilehti ei vaadi osakkeita etukäteen
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab3, tab2, tab4 = st.tabs([
         "📊 Analyysi",
-        "🔁 Backtesting",
         "🇫🇮 Suomen pörssi",
+        "🔁 Backtesting",
         "ℹ️ Tietoa",
     ])
 
     # --- ANALYYSI-välilehti ---
     with tab1:
-        st.header(f"📊 Päivittäinen analyysi – {active_portfolio_name}")
+        st.subheader(f"📊 Päivittäinen analyysi – {active_portfolio_name}")
 
         if stocks_df.empty:
-            st.info("👈 Lisää osakkeita vasemmalta aloittaaksesi analyysin")
+            st.info("🇫🇮 Lisää osakkeita Suomen pörssi -välilehdestä aloittaaksesi analyysin")
         else:
-            # Auto-refresh -asetukset
-            col_r1, col_r2 = st.columns([2, 1])
-            with col_r1:
-                auto_refresh = st.toggle("🔄 Automaattinen päivitys", value=False,
-                                         help="Päivittää datan automaattisesti valitun väliajoin")
-            with col_r2:
-                refresh_interval = st.selectbox(
-                    "Väli",
-                    options=[30, 60, 120, 300],
-                    format_func=lambda x: f"{x}s" if x < 60 else f"{x//60} min",
-                    index=1,
-                    disabled=not auto_refresh,
-                )
-
             col_btn, col_ts = st.columns([1, 3])
             with col_btn:
                 manual_refresh = st.button("🔄 Päivitä nyt")
@@ -1271,7 +1545,7 @@ def main():
                                 st.markdown("---")
                         else:
                             st.info("Ei uutisia saatavilla.")
-                    except Exception:
+                    except Exception as e:  # noqa: BLE001
                         st.info("Uutisten haku epäonnistui.")
 
                 st.markdown("---")
@@ -1289,16 +1563,22 @@ def main():
                     st.markdown("**🟡 PIDÄ**")
                     st.markdown("- Ei osto- tai myyntisignaalia")
 
-            # Auto-refresh silmukka
-            if auto_refresh:
-                time.sleep(refresh_interval)
-                fetch_stock_data.clear()
-                st.rerun()
+
     
     # --- BACKTESTING-välilehti ---
     with tab2:
         st.header("🔁 Backtesting - Strategian testaus")
         st.markdown("Testaa kuinka eri strategiat olisivat toimineet historialla")
+
+        # Osakevalinta
+        bt_symbols = list(stocks_df["symbol"]) if not stocks_df.empty else []
+        bt_options = ["📂 Kaikki salkun osakkeet"] + bt_symbols
+        bt_selection = st.selectbox(
+            "📈 Osake",
+            options=bt_options,
+            help="Valitse yksittäinen osake tai aja kaikille salkun osakkeille",
+        )
+        bt_symbols_to_run = bt_symbols if bt_selection == "📂 Kaikki salkun osakkeet" else [bt_selection]
 
         col1, col2 = st.columns(2)
         with col1:
@@ -1327,12 +1607,12 @@ def main():
         commission = commission_pct / 100
 
         if st.button("▶️ Aja backtesting"):
-            if stocks_df.empty:
+            if not bt_symbols_to_run:
                 st.warning("Lisää ensin osakkeita omaan salkkuun.")
             else:
                 backtest_results = []
                 with st.spinner("Ajetaan backtestingiä..."):
-                    for symbol in stocks_df["symbol"]:
+                    for symbol in bt_symbols_to_run:
                         success, data = backtest_strategy(symbol, years, initial_capital, commission, selected_strategy)
                         if success:
                             backtest_results.append(data)
@@ -1556,7 +1836,7 @@ def main():
                             "P/E": round(pe, 2) if pe else "-",
                             "Markkina-arvo": f"{market_cap/1e9:.1f} Mrd" if market_cap else "-",
                         })
-                except Exception:
+                except Exception as e:  # noqa: BLE001
                     pass  # virheelliset ohitetaan hiljaisesti
                 progress_bar.progress((idx + 1) / total, text=f"Haetaan: {symbol} ({idx+1}/{total})")
 
