@@ -5,6 +5,56 @@ Kaikki projektin merkittävät muutokset dokumentoidaan tähän tiedostoon.
 Formaatti perustuu [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) -standardiin,
 ja projekti noudattaa [Semantic Versioning](https://semver.org/spec/v2.0.0.html) -versiointia.
 
+## [1.10.0] - 2026-02-22
+
+### Lisätty
+- 🧪 **Unit testit** – 65 pytest-testiä kattavat: salasanahashaus, käännösfunktio, DataFrame-sarakkeiden uudelleennimeäminen, osaketunnusten parsinta, käyttäjähallinta (CRUD), salkku & osakkeet, rahastot & NAV-kirjaukset, signaalien generointi (4 strategiaa), kaupankäynnin simulointi
+- 🔁 **GitHub Actions CI-pipeline** – unit testit ajetaan automaattisesti jokaisessa pull requestissa ja push:ssa (`main`/`master`), Python 3.11 & 3.12 matriisilla
+- 🌐 **Monikielisyys (Suomi / English)** – koko käyttöliittymä suomeksi ja englanniksi
+  - `TRANSLATIONS`-sanakirja (~300 avainta) kattaa kaikki välilehdet, otsikot, napit, sarakkeiden nimet ja virheilmoitukset
+  - `t(key, **kwargs)`-apufunktio – palauttaa oikean käännöksen aktiivisen käyttäjän kielen perusteella
+  - Kielen valinta kirjautumissivulla (ennen kirjautumista) ja profiilisivupalkissa (tallennetaan kantaan)
+  - `language`-sarake `users`-tauluun, automaattinen skeemapäivitys vanhoille tietokannoille
+  - `update_user_language(user_id, lang)` –funktio kielen tallentamiseen
+  - Kaikki välilehdet käännetty: Analyysi, Suomen pörssi, USA:n pörssi, EU ETF:t, Omat rahastot, Tietoa
+  - Sarakkeiden nimet vaihdetaan dynaamisesti – suodattimet ja tyylitys toimivat molemmilla kielillä
+  - Tietoa-välilehti: täysi sisältö kahdella kielellä (ehdollinen renderöinti)
+- 📌 **NAV-lähdeohje** – Omat rahastot -välilehteen lisätty opas missä NAV-arvo löytyy (OP, Morningstar, Kauppalehti, Nordnet)
+
+## [1.9.0] - 2026-02-22
+
+### Lisätty
+- 📒 **Omat rahastot -välilehti** – manuaalinen NAV-seuranta omille sijoitusrahastoille
+  - `funds`- ja `fund_nav`-taulut SQLite-kantaan (automaattinen migraatio)
+  - Rahastojen hallinta: lisää, poista (nimi, ISIN, muistiinpanot)
+  - NAV-kirjaukset: syötä arvo päivämäärällä, päivitä tai poista kirjaus
+  - Tunnusluvut: viimeisin NAV, ensimmäinen NAV, kokonaistuotto %, kirjausten määrä
+  - Interaktiivinen kehityskäyrä (Plotly)
+  - NAV-taulukko + CSV-lataus
+  - Sopii OP, Nordea, Seligson jne. rahastoille, joita ei saa Yahoo Financesta
+
+## [1.8.0] - 2026-02-22
+
+### Lisätty
+- 🇪🇺 **EU / Pohjoismaat ETF:t -välilehti** – UCITS-indeksirahastot omana välilehtenä
+  - `EU_ETFS`-sanakirja: ~40 tunnettua UCITS ETF:ää Frankfurt (.DE), Lontoo (.L), Tukholma (.ST) ja Pariisi (.PA) -pörssistä
+  - Kattaa: maailma (MSCI World, FTSE All-World), S&P 500, NASDAQ, Eurooppa, kehittyvät markkinat, pienet yhtiöt, sektori-ETF:t, korko, raaka-aineet ja osinko-ETF:t
+  - `eu_cache`-taulu SQLite-kantaan synkatun datan säilyttämiseksi
+  - `save_eu_cache` / `load_eu_cache` -funktiot välimuistitallennukseen
+  - Sama toiminnallisuus kuin Suomen pörssi ja USA:n pörssi -välilehdissä
+  - Hinta näytetään valuutan mukaan (Valuutta-sarake)
+
+## [1.7.0] - 2026-02-22
+
+### Lisätty
+- 🇺🇸 **USA:n pörssi -välilehti** – NYSE/NASDAQ-osakkeet omana välilehtenä
+  - `US_STOCKS`-sanakirja: ~110 tunnettua US-osaketta ja ETF:ää (teknologia, rahoitus, terveydenhuolto, energia jne.)
+  - `us_cache`-taulu SQLite-kantaan: synkattu data säilyy uudelleenkäynnistyksen yli
+  - `save_us_cache` / `load_us_cache` -funktiot välimuistitallennukseen
+  - Sama toiminnallisuus kuin Suomen pörssi -välilehdessä: synkkaus, haku, signaalisuodatin, CSV-lataus, automaattinen päivitys
+  - Hinnat ja markkina-arvot näytetään USD-muodossa (Hinta ($) -sarake)
+  - Valitut osakkeet voi lisätä suoraan aktiiviseen salkkuun
+
 ## [1.6.1] - 2026-02-22
 
 ### Korjattu

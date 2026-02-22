@@ -52,3 +52,7 @@ Thumbs.db
 
 # CSV exports
 *.csv
+
+# Pytest
+test-results.xml
+.pytest_cache/

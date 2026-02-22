@@ -33,8 +33,402 @@ import hashlib
 from deep_translator import GoogleTranslator
 
 # Asetukset
-VERSION = "1.6.1"
+VERSION = "1.10.0"
 DB_NAME = "stocks.db"
+
+# --- Käyttöliittymän käännökset (FI / EN) ---
+TRANSLATIONS: dict[str, dict[str, str]] = {
+    "fi": {
+        # Sovellus
+        "app_subtitle": "Tekninen analyysi, backtesting ja päivittäiset signaalit",
+        # Välilehdet
+        "tab_analysis": "📊 Analyysi",
+        "tab_fi": "🇫🇮 Suomen pörssi",
+        "tab_us": "🇺🇸 USA:n pörssi",
+        "tab_eu": "🇪🇺 EU / Pohjoismaat ETF:t",
+        "tab_funds": "📒 Omat rahastot",
+        "tab_backtest": "🔁 Backtesting",
+        "tab_info": "ℹ️ Tietoa",
+        # Sivupalkki
+        "sidebar_portfolios": "🗂️ Salkut",
+        "sidebar_active": "Aktiivinen salkku",
+        "sidebar_import": "📂 Tuo osakkeet tiedostosta",
+        "sidebar_import_hint": "Tue muodot: .txt tai .csv, yksi tunnus per rivi tai pilkuilla erotettuna",
+        "sidebar_import_example": "📄 Lataa esimerkkitiedosto",
+        "sidebar_import_btn": "✅ Tuo kaikki salkkuun",
+        "sidebar_no_stocks": "Ei osakkeita. Lisää osakkeita 🇫🇮 Suomen pörssi -välilehdestä.",
+        "sidebar_last_portfolio": "Viimeistä salkkua ei voi poistaa.",
+        "sidebar_max_portfolios": "Maksimimäärä (5) salkkuja saavutettu.",
+        "sidebar_new_portfolio_placeholder": "esim. Kasvu-salkku",
+        # Profiili
+        "profile_nickname": "Kutsumanimi",
+        "profile_email": "Sähköposti",
+        "profile_save": "💾 Tallenna",
+        "profile_saved": "Tallennettu!",
+        "profile_change_pw": "### Vaihda salasana",
+        "profile_old_pw": "Vanha salasana",
+        "profile_new_pw": "Uusi salasana",
+        "profile_new_pw2": "Uusi salasana uudelleen",
+        "profile_change_pw_btn": "🔄 Vaihda",
+        "profile_language": "🌐 Kieli / Language",
+        "profile_language_save": "💾 Tallenna kieli",
+        "profile_logout": "🚪 Kirjaudu ulos",
+        "profile_user_mgmt": "🔒 Käyttäjänhallinta",
+        "profile_create_user": "**Luo uusi käyttäjä**",
+        "profile_username_lbl": "Käyttäjätunnus",
+        "profile_nickname_lbl": "Kutsumanimi",
+        "profile_email_lbl": "Sähköposti",
+        "profile_role_lbl": "Rooli",
+        "profile_password_lbl": "Salasana",
+        "profile_password2_lbl": "Salasana uudelleen",
+        "profile_create_btn": "➕ Luo käyttäjä",
+        "profile_pw_mismatch": "Salasanat eivät täsmää.",
+        "profile_pw_short": "Salasanan on oltava vähintään 4 merkkiä.",
+        "profile_username_empty": "Käyttäjätunnus ei voi olla tyhjä.",
+        # Kirjautuminen
+        "login_username": "Käyttäjätunnus",
+        "login_password": "Salasana",
+        "login_btn": "🔓 Kirjaudu",
+        "login_error": "❌ Väärä käyttäjätunnus tai salasana.",
+        # Analyysi
+        "analysis_header": "📊 Päivittäinen analyysi",
+        "analysis_refresh": "🔄 Päivitä nyt",
+        "analysis_last_updated": "Viimeksi päivitetty",
+        "analysis_spinner": "Analysoidaan osakkeita...",
+        "analysis_download": "📥 Lataa CSV",
+        "analysis_detail": "🔍 Yksittäinen osake – fundamentit, kaaviot ja uutiset",
+        "analysis_select": "Valitse osake",
+        "analysis_no_stocks": "🇫🇮 Lisää osakkeita Suomen pörssi -välilehdestä aloittaaksesi analyysin",
+        "analysis_sector": "Toimiala",
+        # Sarakkeet
+        "col_symbol": "Tunnus",
+        "col_company": "Yritys",
+        "col_price_eur": "Hinta (€)",
+        "col_price_usd": "Hinta ($)",
+        "col_change": "Muutos %",
+        "col_signal": "Signaali",
+        "col_currency": "Valuutta",
+        "col_market_cap": "Markkina-arvo",
+        "col_pe": "P/E",
+        "col_pb": "P/B",
+        "col_roe": "ROE %",
+        "col_dividend": "Osinko %",
+        "col_sma50": "SMA50",
+        "col_sma200": "SMA200",
+        "col_name": "Yritys",
+        "col_etf_name": "Nimi",
+        # Suomen pörssi
+        "fi_header": "🇫🇮 Suomen pörssi – Nasdaq Helsinki (OMXH)",
+        "fi_count": "Lista sisältää **{n}** Helsingin pörssin osaketta. Kurssit haetaan Yahoo Financesta (.HE-suffiksi).",
+        "fi_auto_refresh": "🔄 Automaattinen päivitys",
+        "fi_auto_refresh_help": "Päivittää Suomen pörssin datan automaattisesti",
+        "fi_interval": "Väli",
+        "fi_sync_all": "🔄 Synkkaa kaikki",
+        "fi_clear_cache": "🗑️ Tyhjennä cache",
+        "fi_cache_cleared": "Cache tyhjennetty!",
+        "fi_last_synced": "🕒 Viimeksi synkattu: **{ts}**",
+        "fi_search": "🔍 Hae yhtiötä tai tunnusta",
+        "fi_signal_filter": "Signaali",
+        "fi_signal_all": "Kaikki",
+        "fi_add_multiselect": "Valitse osakkeet salkkuun lisäämistä varten",
+        "fi_add_btn": "➕ Lisää valitut salkkuun",
+        "fi_added": "Lisätty '{portfolio}': {added}, jo listalla: {skipped}",
+        "fi_fetching": "Haetaan: {symbol} ({idx}/{total})",
+        "fi_fetching_start": "Haetaan kursseja...",
+        "fi_press_sync": "Paina **🔄 Synkkaa kaikki** ladataksesi ajantasaiset kurssit.",
+        "fi_download": "📥 Lataa taulukko CSV",
+        # USA:n pörssi
+        "us_header": "🇺🇸 USA:n pörssi – NYSE / NASDAQ",
+        "us_count": "Lista sisältää **{n}** yhdysvaltalaista osaketta ja ETF:ää. Kurssit haetaan Yahoo Financesta (USD).",
+        "us_auto_refresh_help": "Päivittää USA:n pörssin datan automaattisesti",
+        "us_add_multiselect": "Valitse osakkeet salkkuun lisäämistä varten",
+        "us_add_btn": "➕ Lisää valitut salkkuun",
+        "us_download": "📥 Lataa taulukko CSV",
+        # EU ETF
+        "eu_header": "🇪🇺 EU / Pohjoismaat – UCITS ETF:t",
+        "eu_count": "Lista sisältää **{n}** eurooppalaista UCITS-indeksirahastoa (ETF). Kurssit haetaan Yahoo Financesta (Frankfurt .DE, Lontoo .L, Tukholma .ST jne.).",
+        "eu_auto_refresh_help": "Päivittää EU ETF -datan automaattisesti",
+        "eu_search": "🔍 Hae ETF:ää tai tunnusta",
+        "eu_add_multiselect": "Valitse ETF:t salkkuun lisäämistä varten",
+        "eu_add_btn": "➕ Lisää valitut salkkuun",
+        "eu_download": "📥 Lataa taulukko CSV",
+        # Omat rahastot
+        "funds_header": "📒 Omat rahastot – manuaalinen NAV-seuranta",
+        "funds_desc": "Lisää omat sijoitusrahastosi (esim. OP-, Nordea- tai Seligson-rahastot) ja kirjaa NAV-arvo käsin. Työkalu laskee tuoton ja piirtää kehityskäyrän.",
+        "funds_add_expander": "➕ Lisää uusi rahasto",
+        "funds_name_lbl": "Rahaston nimi *",
+        "funds_name_ph": "esim. OP-Suomi Indeksi",
+        "funds_isin_lbl": "ISIN-koodi (valinnainen)",
+        "funds_isin_ph": "esim. FI0008807637",
+        "funds_notes_lbl": "Muistiinpanot (valinnainen)",
+        "funds_notes_ph": "esim. Kuukausisäästö 100 €/kk",
+        "funds_add_btn": "✅ Lisää rahasto",
+        "funds_name_required": "Anna rahaston nimi.",
+        "funds_fund_added": "Rahasto '{name}' lisätty.",
+        "funds_select": "Valitse rahasto",
+        "funds_delete_btn": "🗑️ Poista rahasto",
+        "funds_confirm_delete": "Poistetaanko **{name}** ja kaikki sen NAV-kirjaukset?",
+        "funds_confirm_yes": "✅ Kyllä, poista",
+        "funds_confirm_no": "❌ Peruuta",
+        "funds_nav_date": "Päivämäärä",
+        "funds_nav_value": "NAV-arvo (€)",
+        "funds_nav_save": "💾 Tallenna NAV",
+        "funds_no_entries": "Ei NAV-kirjauksia. Lisää ensimmäinen arvo yllä.",
+        "funds_latest_nav": "Viimeisin NAV",
+        "funds_first_nav": "Ensimmäinen NAV",
+        "funds_total_return": "Kokonaistuotto",
+        "funds_entries_count": "Kirjauksia",
+        "funds_chart_title": "{name} – NAV-kehitys",
+        "funds_entries_header": "##### Kirjaukset",
+        "funds_col_date": "Päivämäärä",
+        "funds_col_nav": "NAV (€)",
+        "funds_delete_entry_expander": "🗑️ Poista kirjaus",
+        "funds_delete_entry_select": "Valitse poistettava päivämäärä",
+        "funds_delete_entry_btn": "🗑️ Poista valittu kirjaus",
+        "funds_download": "📥 Lataa CSV",
+        "funds_empty": "Lisää ensin rahasto yllä olevalla lomakkeella.",
+        "funds_nav_where_header": "#### 📌 Mistä NAV-arvo löytyy?",
+        "funds_nav_where_body": (
+            "**OP-rahastot:** [op.fi](https://op.fi) → Rahastot → valitse rahasto → Kurssikehitys-välilehti\n\n"
+            "**Muut lähteet:**\n\n"
+            "| Lähde | Osoite |\n|---|---|\n"
+            "| Morningstar | [morningstar.fi](https://www.morningstar.fi) |\n"
+            "| Kauppalehti | [kauppalehti.fi/rahastot](https://www.kauppalehti.fi/rahastot) |\n"
+            "| Nordnet | [nordnet.fi](https://www.nordnet.fi) |\n\n"
+            "💡 **Vinkki:** Riittää kirjata arvo kerran kuukaudessa – kehityskäyrä näyttää silti rahaston kasvun pitkällä aikavälillä."
+        ),
+        # Tietoa-välilehti
+        "info_header": "ℹ️ Tietoa työkalusta",
+        "info_version": "Versio",
+        "info_updated": "Päivitetty",
+        # Backtesting
+        "bt_header": "🔁 Backtesting - Strategian testaus",
+        "bt_desc": "Testaa kuinka eri strategiat olisivat toimineet historialla",
+        "bt_stock_label": "📈 Osake",
+        "bt_all_stocks": "📂 Kaikki salkun osakkeet",
+        "bt_years": "Vuodet taaksepäin",
+        "bt_capital": "Aloituspääoma (€)",
+        "bt_strategy": "🤖 Strategia",
+        "bt_commission": "Kaupankäyntikulut (%)",
+        "bt_run_btn": "▶️ Aja backtesting",
+        "bt_no_stocks": "Lisää ensin osakkeita omaan salkkuun.",
+        "bt_select_stock": "Valitse osake",
+        # Uutiset
+        "news_no_news": "Ei uutisia saatavilla.",
+        "news_fetch_error": "Uutisten haku epäonnistui.",
+    },
+    "en": {
+        # App
+        "app_subtitle": "Technical analysis, backtesting and daily signals",
+        # Tabs
+        "tab_analysis": "📊 Analysis",
+        "tab_fi": "🇫🇮 Finnish Stocks",
+        "tab_us": "🇺🇸 US Stocks",
+        "tab_eu": "🇪🇺 EU / Nordic ETFs",
+        "tab_funds": "📒 My Funds",
+        "tab_backtest": "🔁 Backtesting",
+        "tab_info": "ℹ️ About",
+        # Sidebar
+        "sidebar_portfolios": "🗂️ Portfolios",
+        "sidebar_active": "Active portfolio",
+        "sidebar_import": "📂 Import stocks from file",
+        "sidebar_import_hint": "Supported formats: .txt or .csv, one symbol per line or comma-separated",
+        "sidebar_import_example": "📄 Download example file",
+        "sidebar_import_btn": "✅ Import all to portfolio",
+        "sidebar_no_stocks": "No stocks. Add stocks from the 🇫🇮 Finnish Stocks tab.",
+        "sidebar_last_portfolio": "Cannot delete the last portfolio.",
+        "sidebar_max_portfolios": "Maximum number (5) of portfolios reached.",
+        "sidebar_new_portfolio_placeholder": "e.g. Growth portfolio",
+        # Profile
+        "profile_nickname": "Display name",
+        "profile_email": "Email",
+        "profile_save": "💾 Save",
+        "profile_saved": "Saved!",
+        "profile_change_pw": "### Change password",
+        "profile_old_pw": "Current password",
+        "profile_new_pw": "New password",
+        "profile_new_pw2": "New password again",
+        "profile_change_pw_btn": "🔄 Change",
+        "profile_language": "🌐 Language / Kieli",
+        "profile_language_save": "💾 Save language",
+        "profile_logout": "🚪 Log out",
+        "profile_user_mgmt": "🔒 User management",
+        "profile_create_user": "**Create new user**",
+        "profile_username_lbl": "Username",
+        "profile_nickname_lbl": "Display name",
+        "profile_email_lbl": "Email",
+        "profile_role_lbl": "Role",
+        "profile_password_lbl": "Password",
+        "profile_password2_lbl": "Password again",
+        "profile_create_btn": "➕ Create user",
+        "profile_pw_mismatch": "Passwords do not match.",
+        "profile_pw_short": "Password must be at least 4 characters.",
+        "profile_username_empty": "Username cannot be empty.",
+        # Login
+        "login_username": "Username",
+        "login_password": "Password",
+        "login_btn": "🔓 Log in",
+        "login_error": "❌ Incorrect username or password.",
+        # Analysis
+        "analysis_header": "📊 Daily analysis",
+        "analysis_refresh": "🔄 Refresh now",
+        "analysis_last_updated": "Last updated",
+        "analysis_spinner": "Analysing stocks...",
+        "analysis_download": "📥 Download CSV",
+        "analysis_detail": "🔍 Individual stock – fundamentals, charts and news",
+        "analysis_select": "Select stock",
+        "analysis_no_stocks": "🇫🇮 Add stocks from the Finnish Stocks tab to start analysis",
+        "analysis_sector": "Sector",
+        # Columns
+        "col_symbol": "Symbol",
+        "col_company": "Company",
+        "col_price_eur": "Price (€)",
+        "col_price_usd": "Price ($)",
+        "col_change": "Change %",
+        "col_signal": "Signal",
+        "col_currency": "Currency",
+        "col_market_cap": "Market cap",
+        "col_pe": "P/E",
+        "col_pb": "P/B",
+        "col_roe": "ROE %",
+        "col_dividend": "Dividend %",
+        "col_sma50": "SMA50",
+        "col_sma200": "SMA200",
+        "col_name": "Company",
+        "col_etf_name": "Name",
+        # Finnish stocks
+        "fi_header": "🇫🇮 Finnish Stock Exchange – Nasdaq Helsinki (OMXH)",
+        "fi_count": "The list contains **{n}** Helsinki Stock Exchange stocks. Prices fetched from Yahoo Finance (.HE suffix).",
+        "fi_auto_refresh": "🔄 Auto-refresh",
+        "fi_auto_refresh_help": "Automatically refreshes Finnish stock data",
+        "fi_interval": "Interval",
+        "fi_sync_all": "🔄 Sync all",
+        "fi_clear_cache": "🗑️ Clear cache",
+        "fi_cache_cleared": "Cache cleared!",
+        "fi_last_synced": "🕒 Last synced: **{ts}**",
+        "fi_search": "🔍 Search company or symbol",
+        "fi_signal_filter": "Signal",
+        "fi_signal_all": "All",
+        "fi_add_multiselect": "Select stocks to add to portfolio",
+        "fi_add_btn": "➕ Add selected to portfolio",
+        "fi_added": "Added to '{portfolio}': {added}, already listed: {skipped}",
+        "fi_fetching": "Fetching: {symbol} ({idx}/{total})",
+        "fi_fetching_start": "Fetching prices...",
+        "fi_press_sync": "Press **🔄 Sync all** to load current prices.",
+        "fi_download": "📥 Download CSV",
+        # US stocks
+        "us_header": "🇺🇸 US Stock Exchange – NYSE / NASDAQ",
+        "us_count": "The list contains **{n}** US stocks and ETFs. Prices fetched from Yahoo Finance (USD).",
+        "us_auto_refresh_help": "Automatically refreshes US stock data",
+        "us_add_multiselect": "Select stocks to add to portfolio",
+        "us_add_btn": "➕ Add selected to portfolio",
+        "us_download": "📥 Download CSV",
+        # EU ETF
+        "eu_header": "🇪🇺 EU / Nordics – UCITS ETFs",
+        "eu_count": "The list contains **{n}** European UCITS ETFs. Prices fetched from Yahoo Finance (Frankfurt .DE, London .L, Stockholm .ST etc.).",
+        "eu_auto_refresh_help": "Automatically refreshes EU ETF data",
+        "eu_search": "🔍 Search ETF or symbol",
+        "eu_add_multiselect": "Select ETFs to add to portfolio",
+        "eu_add_btn": "➕ Add selected to portfolio",
+        "eu_download": "📥 Download CSV",
+        # My Funds
+        "funds_header": "📒 My Funds – manual NAV tracking",
+        "funds_desc": "Add your own investment funds (e.g. OP, Nordea or Seligson) and record the NAV manually. The tool calculates returns and plots a performance chart.",
+        "funds_add_expander": "➕ Add new fund",
+        "funds_name_lbl": "Fund name *",
+        "funds_name_ph": "e.g. OP-Finland Index",
+        "funds_isin_lbl": "ISIN code (optional)",
+        "funds_isin_ph": "e.g. FI0008807637",
+        "funds_notes_lbl": "Notes (optional)",
+        "funds_notes_ph": "e.g. Monthly savings €100/month",
+        "funds_add_btn": "✅ Add fund",
+        "funds_name_required": "Please enter a fund name.",
+        "funds_fund_added": "Fund '{name}' added.",
+        "funds_select": "Select fund",
+        "funds_delete_btn": "🗑️ Delete fund",
+        "funds_confirm_delete": "Delete **{name}** and all its NAV entries?",
+        "funds_confirm_yes": "✅ Yes, delete",
+        "funds_confirm_no": "❌ Cancel",
+        "funds_nav_date": "Date",
+        "funds_nav_value": "NAV value (€)",
+        "funds_nav_save": "💾 Save NAV",
+        "funds_no_entries": "No NAV entries. Add the first value above.",
+        "funds_latest_nav": "Latest NAV",
+        "funds_first_nav": "First NAV",
+        "funds_total_return": "Total return",
+        "funds_entries_count": "Entries",
+        "funds_chart_title": "{name} – NAV performance",
+        "funds_entries_header": "##### Entries",
+        "funds_col_date": "Date",
+        "funds_col_nav": "NAV (€)",
+        "funds_delete_entry_expander": "🗑️ Delete entry",
+        "funds_delete_entry_select": "Select date to delete",
+        "funds_delete_entry_btn": "🗑️ Delete selected entry",
+        "funds_download": "📥 Download CSV",
+        "funds_empty": "Add a fund first using the form above.",
+        "funds_nav_where_header": "#### 📌 Where to find the NAV value?",
+        "funds_nav_where_body": (
+            "**OP Funds:** [op.fi](https://op.fi) → Funds → select fund → Price history tab\n\n"
+            "**Other sources:**\n\n"
+            "| Source | Address |\n|---|---|\n"
+            "| Morningstar | [morningstar.fi](https://www.morningstar.fi) |\n"
+            "| Kauppalehti | [kauppalehti.fi/rahastot](https://www.kauppalehti.fi/rahastot) |\n"
+            "| Nordnet | [nordnet.fi](https://www.nordnet.fi) |\n\n"
+            "💡 **Tip:** Recording the value once a month is enough – the chart will clearly show long-term growth."
+        ),
+        # Info tab
+        "info_header": "ℹ️ About this tool",
+        "info_version": "Version",
+        "info_updated": "Updated",
+        # Backtesting
+        "bt_header": "🔁 Backtesting - Strategy Testing",
+        "bt_desc": "Test how different strategies would have performed on historical data",
+        "bt_stock_label": "📈 Stock",
+        "bt_all_stocks": "📂 All portfolio stocks",
+        "bt_years": "Years back",
+        "bt_capital": "Initial capital (€)",
+        "bt_strategy": "🤖 Strategy",
+        "bt_commission": "Trading fees (%)",
+        "bt_run_btn": "▶️ Run backtesting",
+        "bt_no_stocks": "First add stocks to your portfolio.",
+        "bt_select_stock": "Select stock",
+        # News
+        "news_no_news": "No news available.",
+        "news_fetch_error": "Failed to fetch news.",
+    },
+}
+
+
+def t(key: str, **kwargs) -> str:
+    """Palauttaa käännetyn merkkijonon session_state-kielen mukaan.
+    Tukee muuttujakorvauksia: t('fi_count', n=42) -> 'Lista sisältää **42** ...'
+    """
+    lang = st.session_state.get("lang", "fi")
+    text = TRANSLATIONS.get(lang, TRANSLATIONS["fi"]).get(key, TRANSLATIONS["fi"].get(key, key))
+    return text.format(**kwargs) if kwargs else text
+
+
+def _remap_df_columns(df: "pd.DataFrame", col_keys: list) -> "pd.DataFrame":
+    """Uudelleennimeää DataFrame-sarakkeet nykyisen kielen mukaan.
+
+    Käsittelee tilanteen, jossa välimuistissa oleva data on tallennettu eri
+    kielellä kuin aktiivinen kieli – estää KeyError-virheet.
+
+    Args:
+        df: DataFrame, jonka sarakkeet halutaan kääntää.
+        col_keys: Lista TRANSLATIONS-avaimen arvoista (esim. ['col_symbol', ...]).
+    Returns:
+        DataFrame oikeilla sarakeotsikoilla.
+    """
+    remap = {}
+    for key in col_keys:
+        current_name = t(key)
+        for lang_dict in TRANSLATIONS.values():
+            other_name = lang_dict.get(key, "")
+            if other_name and other_name != current_name and other_name in df.columns:
+                remap[other_name] = current_name
+    return df.rename(columns=remap) if remap else df
+
 
 # --- Suomen pörssin osakkeet (Nasdaq Helsinki / OMXH) ---
 # Lähde: Nasdaq Helsinki listatut yhtiöt, Yahoo Finance .HE-suffiksi
@@ -153,6 +547,177 @@ FINNISH_STOCKS = {
     "YAPO.HE":     "Yapo",
 }
 
+# --- Yhdysvaltain pörssin osakkeet (NYSE / NASDAQ) ---
+# Lähde: S&P 500 ja muut tunnetut US-osakkeet, Yahoo Finance (ei suffiksia)
+US_STOCKS = {
+    # Teknologia
+    "AAPL":   "Apple",
+    "MSFT":   "Microsoft",
+    "NVDA":   "NVIDIA",
+    "GOOGL":  "Alphabet (Google) A",
+    "GOOG":   "Alphabet (Google) C",
+    "META":   "Meta Platforms",
+    "AMZN":   "Amazon",
+    "TSLA":   "Tesla",
+    "AVGO":   "Broadcom",
+    "AMD":    "Advanced Micro Devices",
+    "INTC":   "Intel",
+    "QCOM":   "Qualcomm",
+    "TXN":    "Texas Instruments",
+    "CRM":    "Salesforce",
+    "ORCL":   "Oracle",
+    "ADBE":   "Adobe",
+    "NOW":    "ServiceNow",
+    "SNOW":   "Snowflake",
+    "PLTR":   "Palantir",
+    "IBM":    "IBM",
+    "CSCO":   "Cisco",
+    "HPQ":    "HP Inc.",
+    "DELL":   "Dell Technologies",
+    "NET":    "Cloudflare",
+    "PANW":   "Palo Alto Networks",
+    "CRWD":   "CrowdStrike",
+    # Rahoitus
+    "JPM":    "JPMorgan Chase",
+    "BAC":    "Bank of America",
+    "WFC":    "Wells Fargo",
+    "GS":     "Goldman Sachs",
+    "MS":     "Morgan Stanley",
+    "BLK":    "BlackRock",
+    "V":      "Visa",
+    "MA":     "Mastercard",
+    "AXP":    "American Express",
+    "BRK-B":  "Berkshire Hathaway B",
+    "C":      "Citigroup",
+    "USB":    "U.S. Bancorp",
+    "COF":    "Capital One",
+    # Terveydenhuolto
+    "JNJ":    "Johnson & Johnson",
+    "UNH":    "UnitedHealth Group",
+    "PFE":    "Pfizer",
+    "MRK":    "Merck",
+    "ABBV":   "AbbVie",
+    "LLY":    "Eli Lilly",
+    "TMO":    "Thermo Fisher Scientific",
+    "ABT":    "Abbott Laboratories",
+    "BMY":    "Bristol-Myers Squibb",
+    "AMGN":   "Amgen",
+    "GILD":   "Gilead Sciences",
+    "MDT":    "Medtronic",
+    # Kulutus (harkinnanvarainen)
+    "HD":     "Home Depot",
+    "MCD":    "McDonald's",
+    "NKE":    "Nike",
+    "SBUX":   "Starbucks",
+    "TGT":    "Target",
+    "LOW":    "Lowe's",
+    "BKNG":   "Booking Holdings",
+    "MAR":    "Marriott International",
+    # Kulutus (välttämätön)
+    "WMT":    "Walmart",
+    "PG":     "Procter & Gamble",
+    "KO":     "Coca-Cola",
+    "PEP":    "PepsiCo",
+    "COST":   "Costco",
+    "PM":     "Philip Morris",
+    "MO":     "Altria",
+    "CL":     "Colgate-Palmolive",
+    # Teollisuus
+    "BA":     "Boeing",
+    "CAT":    "Caterpillar",
+    "GE":     "GE Aerospace",
+    "HON":    "Honeywell",
+    "MMM":    "3M",
+    "RTX":    "Raytheon Technologies",
+    "LMT":    "Lockheed Martin",
+    "DE":     "Deere & Company",
+    "UPS":    "UPS",
+    "FDX":    "FedEx",
+    # Energia
+    "XOM":    "ExxonMobil",
+    "CVX":    "Chevron",
+    "COP":    "ConocoPhillips",
+    "SLB":    "Schlumberger",
+    "EOG":    "EOG Resources",
+    # Materiaalit & Muut
+    "LIN":    "Linde",
+    "APD":    "Air Products",
+    "ECL":    "Ecolab",
+    "NEM":    "Newmont",
+    # Kiinteistöt
+    "AMT":    "American Tower",
+    "PLD":    "Prologis",
+    "EQIX":   "Equinix",
+    "SPG":    "Simon Property Group",
+    # Viestintä & Viihde
+    "DIS":    "Walt Disney",
+    "NFLX":   "Netflix",
+    "T":      "AT&T",
+    "VZ":     "Verizon",
+    "CMCSA":  "Comcast",
+    "SPOT":   "Spotify",
+    # Indeksirahastot (ETF)
+    "SPY":    "SPDR S&P 500 ETF",
+    "QQQ":    "Invesco QQQ (NASDAQ-100)",
+    "DIA":    "SPDR Dow Jones ETF",
+    "IWM":    "iShares Russell 2000 ETF",
+    "VOO":    "Vanguard S&P 500 ETF",
+}
+
+# --- EU / Pohjoismaiset ETF:t (pörssi: Frankfurt .DE, Lontoo .L, Tukholma .ST) ---
+# Saatavilla Yahoo Financessa, suomalaisille sijoittajille tyypilliset UCITS-rahastot
+EU_ETFS = {
+    # Maailma / Kehittynyt maailma
+    "EUNL.DE":   "iShares Core MSCI World UCITS ETF (EUR, DE)",
+    "IWDA.L":    "iShares Core MSCI World UCITS ETF (USD, L)",
+    "SWDA.L":    "iShares Core MSCI World UCITS ETF (GBP, L)",
+    "VWCE.DE":   "Vanguard FTSE All-World UCITS ETF (EUR, DE)",
+    "VWRL.L":    "Vanguard FTSE All-World UCITS ETF (GBP, L)",
+    "SSAC.L":    "iShares MSCI ACWI UCITS ETF (L)",
+    # S&P 500
+    "CSPX.L":    "iShares Core S&P 500 UCITS ETF (USD, L)",
+    "SXR8.DE":   "iShares Core S&P 500 UCITS ETF (EUR, DE)",
+    "VUAA.L":    "Vanguard S&P 500 UCITS ETF (USD, L)",
+    "VUSA.L":    "Vanguard S&P 500 UCITS ETF (GBP, L)",
+    "SPYL.L":    "SPDR S&P 500 UCITS ETF (L)",
+    # NASDAQ / Teknologia
+    "CNDX.L":    "iShares NASDAQ 100 UCITS ETF (USD, L)",
+    "SXRV.DE":   "iShares NASDAQ 100 UCITS ETF (EUR, DE)",
+    "EQQQ.L":    "Invesco EQQQ NASDAQ-100 UCITS ETF (GBP, L)",
+    # Eurooppa
+    "MEUD.PA":   "Lyxor Core MSCI EMU DR UCITS ETF (PA)",
+    "IMEU.L":    "iShares Core MSCI Europe UCITS ETF (L)",
+    "VEUR.L":    "Vanguard FTSE Developed Europe UCITS ETF (L)",
+    "EXW1.DE":   "iShares Core EURO STOXX 50 UCITS ETF (DE)",
+    # Pohjoismaat
+    "NORDE.ST":  "Xetra-Gold ETC (Stockholm placeholder)",
+    "DNDX.ST":   "Danske Invest Sverige Index (Stockholm)",
+    # Kehittyvät markkinat
+    "IS3N.DE":   "iShares Core MSCI EM IMI UCITS ETF (EUR, DE)",
+    "EMIM.L":    "iShares Core MSCI EM IMI UCITS ETF (USD, L)",
+    "VFEM.L":    "Vanguard FTSE Emerging Markets UCITS ETF (L)",
+    "EEMS.L":    "iShares MSCI EM Small Cap UCITS ETF (L)",
+    # Pienet yhtiöt
+    "IUSN.DE":   "iShares MSCI World Small Cap UCITS ETF (DE)",
+    "WSML.L":    "iShares MSCI World Small Cap UCITS ETF (L)",
+    # Sektori-ETF:t
+    "QDVE.DE":   "iShares S&P 500 Information Technology ETF (DE)",
+    "HEAL.L":    "iShares Healthcare Innovation UCITS ETF (L)",
+    "INRG.L":    "iShares Global Clean Energy UCITS ETF (L)",
+    "IQQH.DE":   "iShares Global Clean Energy UCITS ETF (DE)",
+    # Korko / Joukkovelkakirja
+    "IEAG.L":    "iShares Core Euro Aggregate Bond UCITS ETF (L)",
+    "EUNA.DE":   "iShares Core Euro Government Bond UCITS ETF (DE)",
+    "IBCI.L":    "iShares € Inflation Linked Govt Bond UCITS ETF (L)",
+    # Raaka-aineet
+    "4GLD.DE":   "Xetra-Gold ETC (fyysinen kulta, DE)",
+    "PHAU.L":    "WisdomTree Physical Gold ETC (L)",
+    "ISIL.L":    "iShares Physical Silver ETC (L)",
+    # Osinko-ETF:t
+    "VHYL.L":    "Vanguard FTSE All-World High Dividend Yield UCITS ETF (L)",
+    "IDVY.L":    "iShares Euro Dividend UCITS ETF (L)",
+}
+
 
 # --- Tietokanta ---
 def init_db():
@@ -160,9 +725,17 @@ def init_db():
     conn = sqlite3.connect(DB_NAME, timeout=10)
     c = conn.cursor()
 
-    # Portfoliot-taulu
+    # Portfoliot-taulu (luodaan ensin jos ei ole olemassa)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS portfolios (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            name       TEXT NOT NULL,
+            user_id    INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT
+        )
+    """)
 
-    # Migraatio: lisää user_id-sarake jos puuttuu
+    # Migraatio: lisää user_id-sarake jos puuttuu (vanhat kannat)
     portfolio_cols = [row[1] for row in c.execute("PRAGMA table_info(portfolios)").fetchall()]
     if "user_id" not in portfolio_cols:
         c.execute("ALTER TABLE portfolios ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1")
@@ -206,6 +779,45 @@ def init_db():
         )
     """)
 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS us_cache (
+            id        INTEGER PRIMARY KEY CHECK (id = 1),
+            data      TEXT,
+            synced_at TEXT
+        )
+    """)
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS eu_cache (
+            id        INTEGER PRIMARY KEY CHECK (id = 1),
+            data      TEXT,
+            synced_at TEXT
+        )
+    """)
+
+    # Omat rahastot -taulut
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS funds (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL DEFAULT 1,
+            name       TEXT NOT NULL,
+            isin       TEXT,
+            notes      TEXT,
+            created_at TEXT
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS fund_nav (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            fund_id    INTEGER NOT NULL,
+            nav        REAL NOT NULL,
+            nav_date   TEXT NOT NULL,
+            created_at TEXT,
+            UNIQUE(fund_id, nav_date),
+            FOREIGN KEY(fund_id) REFERENCES funds(id) ON DELETE CASCADE
+        )
+    """)
+
     # Käyttäjät-taulu
     c.execute("""
         CREATE TABLE IF NOT EXISTS users (
@@ -224,6 +836,9 @@ def init_db():
         c.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
         # Aseta jukka adminiksi
         c.execute("UPDATE users SET role='admin' WHERE username='jukka'")
+    # Migraatio: lisää language-sarake jos puuttuu
+    if "language" not in user_cols:
+        c.execute("ALTER TABLE users ADD COLUMN language TEXT NOT NULL DEFAULT 'fi'")
 
     # Luo oletuskäyttäjä jos ei käyttäjiä
     c.execute("SELECT COUNT(*) FROM users")
@@ -271,12 +886,12 @@ def get_user_by_username(username: str):
     conn = sqlite3.connect(DB_NAME)
     try:
         row = conn.execute(
-            "SELECT id, username, password_hash, display_name, email, role FROM users WHERE username = ?",
+            "SELECT id, username, password_hash, display_name, email, role, language FROM users WHERE username = ?",
             (username,)
         ).fetchone()
     finally:
         conn.close()
-    return row  # (id, username, password_hash, display_name, email, role)
+    return row  # (id, username, password_hash, display_name, email, role, language)
 
 def get_all_users() -> list[tuple]:
     """Palauttaa kaikki käyttäjät listana (id, username, display_name, role). Vain adminille."""
@@ -330,6 +945,15 @@ def update_user_profile(user_id: int, display_name: str, email: str) -> None:
             "UPDATE users SET display_name=?, email=? WHERE id=?",
             (display_name.strip(), email.strip(), user_id)
         )
+        conn.commit()
+    finally:
+        conn.close()
+
+def update_user_language(user_id: int, language: str) -> None:
+    """Päivittää käyttäjän kieliasetuksen tietokantaan."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        conn.execute("UPDATE users SET language=? WHERE id=?", (language, user_id))
         conn.commit()
     finally:
         conn.close()
@@ -431,6 +1055,137 @@ def load_fi_cache() -> tuple[list | None, str | None]:
     if row:
         return json.loads(row[0]), row[1]
     return None, None
+
+def save_us_cache(results: list, timestamp: str) -> None:
+    """Tallentaa USA:n pörssin datan tietokantaan JSON-muodossa."""
+    import json
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        conn.execute("""
+            INSERT INTO us_cache (id, data, synced_at)
+            VALUES (1, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET data=excluded.data, synced_at=excluded.synced_at
+        """, (json.dumps(results, ensure_ascii=False), timestamp))
+        conn.commit()
+    finally:
+        conn.close()
+
+def load_us_cache() -> tuple[list | None, str | None]:
+    """Lataa USA:n pörssin datan tietokannasta. Palauttaa (list, str) tai (None, None)."""
+    import json
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        row = conn.execute("SELECT data, synced_at FROM us_cache WHERE id = 1").fetchone()
+    finally:
+        conn.close()
+    if row:
+        return json.loads(row[0]), row[1]
+    return None, None
+
+def save_eu_cache(results: list, timestamp: str) -> None:
+    """Tallentaa EU ETF:ien datan tietokantaan JSON-muodossa."""
+    import json
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        conn.execute("""
+            INSERT INTO eu_cache (id, data, synced_at)
+            VALUES (1, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET data=excluded.data, synced_at=excluded.synced_at
+        """, (json.dumps(results, ensure_ascii=False), timestamp))
+        conn.commit()
+    finally:
+        conn.close()
+
+def load_eu_cache() -> tuple[list | None, str | None]:
+    """Lataa EU ETF:ien datan tietokannasta. Palauttaa (list, str) tai (None, None)."""
+    import json
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        row = conn.execute("SELECT data, synced_at FROM eu_cache WHERE id = 1").fetchone()
+    finally:
+        conn.close()
+    if row:
+        return json.loads(row[0]), row[1]
+    return None, None
+
+# --- Omat rahastot -funktiot ---
+
+def get_funds(user_id: int) -> list[dict]:
+    """Palauttaa käyttäjän kaikki rahastot listana."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        rows = conn.execute(
+            "SELECT id, name, isin, notes, created_at FROM funds WHERE user_id=? ORDER BY name",
+            (user_id,)
+        ).fetchall()
+    finally:
+        conn.close()
+    return [{"id": r[0], "name": r[1], "isin": r[2], "notes": r[3], "created_at": r[4]} for r in rows]
+
+def add_fund(user_id: int, name: str, isin: str, notes: str) -> tuple[bool, str]:
+    """Lisää uuden rahaston. Palauttaa (onnistui, viesti)."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        conn.execute(
+            "INSERT INTO funds (user_id, name, isin, notes, created_at) VALUES (?,?,?,?,?)",
+            (user_id, name.strip(), isin.strip(), notes.strip(), datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        )
+        conn.commit()
+        return True, f"Rahasto '{name}' lisätty."
+    except sqlite3.IntegrityError:
+        return False, "Rahasto on jo olemassa."
+    finally:
+        conn.close()
+
+def delete_fund(fund_id: int) -> None:
+    """Poistaa rahaston ja kaikki sen NAV-kirjaukset."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        conn.execute("DELETE FROM fund_nav WHERE fund_id=?", (fund_id,))
+        conn.execute("DELETE FROM funds WHERE id=?", (fund_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+def add_fund_nav(fund_id: int, nav: float, nav_date: str) -> tuple[bool, str]:
+    """Lisää tai päivittää NAV-arvon tietylle päivämäärälle. Palauttaa (onnistui, viesti)."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        conn.execute(
+            """
+            INSERT INTO fund_nav (fund_id, nav, nav_date, created_at)
+            VALUES (?,?,?,?)
+            ON CONFLICT(fund_id, nav_date) DO UPDATE SET nav=excluded.nav
+            """,
+            (fund_id, nav, nav_date, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        )
+        conn.commit()
+        return True, "NAV tallennettu."
+    except Exception as e:  # noqa: BLE001
+        return False, str(e)
+    finally:
+        conn.close()
+
+def get_fund_nav_history(fund_id: int) -> pd.DataFrame:
+    """Palauttaa rahaston NAV-historian DataFramena (nav_date, nav)."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        df = pd.read_sql(
+            "SELECT nav_date, nav FROM fund_nav WHERE fund_id=? ORDER BY nav_date",
+            conn, params=(fund_id,)
+        )
+    finally:
+        conn.close()
+    return df
+
+def delete_fund_nav(fund_id: int, nav_date: str) -> None:
+    """Poistaa yhden NAV-kirjauksen."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        conn.execute("DELETE FROM fund_nav WHERE fund_id=? AND nav_date=?", (fund_id, nav_date))
+        conn.commit()
+    finally:
+        conn.close()
 
 def get_stocks(portfolio_id: int = 1) -> pd.DataFrame:
     """Hakee salkun osakkeet tietokannasta."""
@@ -1138,6 +1893,7 @@ def plot_volume_chart(df, symbol):
 
 # --- Kirjautumissivu ---
 def show_login_page():
+    lang = st.session_state.get("lang", "fi")
     st.markdown("""
 <style>
 .block-container { padding-top: 4rem !important; }
@@ -1150,14 +1906,29 @@ def show_login_page():
 </style>
 <div class="app-header">
   <h2>📈 Osakeanalyysi-työkalu v""" + VERSION + """</h2>
-  <p>Tekninen analyysi, backtesting ja päivittäiset signaalit</p>
+  <p>""" + t("app_subtitle") + """</p>
 </div>
 """, unsafe_allow_html=True)
 
+    # Kielenvalinta ennen kirjautumista
+    col_lang, _ = st.columns([1, 3])
+    with col_lang:
+        login_lang = st.selectbox(
+            "🌐",
+            options=["fi", "en"],
+            format_func=lambda l: "🇫🇮 Suomi" if l == "fi" else "🇬🇧 English",
+            index=0 if lang == "fi" else 1,
+            key="login_lang_select",
+            label_visibility="collapsed",
+        )
+        if login_lang != lang:
+            st.session_state["lang"] = login_lang
+            st.rerun()
+
     with st.form("login_form"):
-        username = st.text_input("Käyttäjätunnus")
-        password = st.text_input("Salasana", type="password")
-        submitted = st.form_submit_button("🔓 Kirjaudu", use_container_width=True)
+        username = st.text_input(t("login_username"))
+        password = st.text_input(t("login_password"), type="password")
+        submitted = st.form_submit_button(t("login_btn"), use_container_width=True)
         if submitted:
             if verify_password(username.strip(), password):
                 row = get_user_by_username(username.strip())
@@ -1167,10 +1938,11 @@ def show_login_page():
                 st.session_state["display_name"] = row[3] or row[1]
                 st.session_state["email"] = row[4] or ""
                 st.session_state["role"] = row[5]
+                st.session_state["lang"] = row[6] if row[6] in ("fi", "en") else "fi"
                 ensure_user_portfolio(row[0])
                 st.rerun()
             else:
-                st.error("❌ Väärä käyttäjätunnus tai salasana.")
+                st.error(t("login_error"))
 
 
 def show_profile_sidebar():
@@ -1181,28 +1953,45 @@ def show_profile_sidebar():
     role_badge = "🔒 Admin" if role == "admin" else "👤 User"
 
     with st.expander(f"{role_badge} {display}", expanded=False):
-        st.markdown("### Profiili")
+        st.markdown("### Profiili / Profile")
         with st.form("profile_form"):
-            upd_display = st.text_input("Kutsumanimi", value=st.session_state.get("display_name", ""))
-            upd_email   = st.text_input("Sähköposti",  value=st.session_state.get("email", ""))
-            if st.form_submit_button("💾 Tallenna", use_container_width=True):
+            upd_display = st.text_input(t("profile_nickname"), value=st.session_state.get("display_name", ""))
+            upd_email   = st.text_input(t("profile_email"),    value=st.session_state.get("email", ""))
+            if st.form_submit_button(t("profile_save"), use_container_width=True):
                 update_user_profile(user_id, upd_display, upd_email)
                 st.session_state["display_name"] = upd_display
                 st.session_state["email"] = upd_email
-                st.success("Tallennettu!")
+                st.success(t("profile_saved"))
+                st.rerun()
+
+        # Kielenvalinta
+        st.markdown("---")
+        st.markdown(f"**{t('profile_language')}**")
+        with st.form("lang_form"):
+            current_lang = st.session_state.get("lang", "fi")
+            new_lang = st.selectbox(
+                t("profile_language"),
+                options=["fi", "en"],
+                format_func=lambda l: "🇫🇮 Suomi" if l == "fi" else "🇬🇧 English",
+                index=0 if current_lang == "fi" else 1,
+                label_visibility="collapsed",
+            )
+            if st.form_submit_button(t("profile_language_save"), use_container_width=True):
+                update_user_language(user_id, new_lang)
+                st.session_state["lang"] = new_lang
                 st.rerun()
 
         st.markdown("---")
-        st.markdown("### Vaihda salasana")
+        st.markdown(t("profile_change_pw"))
         with st.form("pw_form"):
-            old_pw  = st.text_input("Vanha salasana", type="password")
-            new_pw1 = st.text_input("Uusi salasana", type="password")
-            new_pw2 = st.text_input("Uusi salasana uudelleen", type="password")
-            if st.form_submit_button("🔄 Vaihda", use_container_width=True):
+            old_pw  = st.text_input(t("profile_old_pw"), type="password")
+            new_pw1 = st.text_input(t("profile_new_pw"), type="password")
+            new_pw2 = st.text_input(t("profile_new_pw2"), type="password")
+            if st.form_submit_button(t("profile_change_pw_btn"), use_container_width=True):
                 if new_pw1 != new_pw2:
-                    st.error("Salasanat eivät täsmää.")
+                    st.error(t("profile_pw_mismatch"))
                 elif len(new_pw1) < 4:
-                    st.error("Salasanan on oltava vähintään 4 merkkiä.")
+                    st.error(t("profile_pw_short"))
                 else:
                     ok, msg = change_password(user_id, old_pw, new_pw1)
                     if ok:
@@ -1213,7 +2002,7 @@ def show_profile_sidebar():
         # Admin: käyttäjänhallinta
         if role == "admin":
             st.markdown("---")
-            st.markdown("🔒 **Käyttäjänhallinta**")
+            st.markdown(t("profile_user_mgmt"))
             users = get_all_users()
             for u in users:
                 uid, uname, udisp, urole = u
@@ -1227,22 +2016,22 @@ def show_profile_sidebar():
                             delete_user(uid)
                             st.rerun()
 
-            st.markdown("**Luo uusi käyttäjä**")
+            st.markdown(t("profile_create_user"))
             with st.form("admin_create_user"):
-                nu_username = st.text_input("Käyttäjätunnus")
-                nu_display  = st.text_input("Kutsumanimi")
-                nu_email    = st.text_input("Sähköposti")
-                nu_role     = st.selectbox("Rooli", options=["user", "admin"],
+                nu_username = st.text_input(t("profile_username_lbl"))
+                nu_display  = st.text_input(t("profile_nickname_lbl"))
+                nu_email    = st.text_input(t("profile_email_lbl"))
+                nu_role     = st.selectbox(t("profile_role_lbl"), options=["user", "admin"],
                                            format_func=lambda r: "👤 User" if r == "user" else "🔒 Admin")
-                nu_pw1      = st.text_input("Salasana", type="password")
-                nu_pw2      = st.text_input("Salasana uudelleen", type="password")
-                if st.form_submit_button("➕ Luo käyttäjä", use_container_width=True):
+                nu_pw1      = st.text_input(t("profile_password_lbl"), type="password")
+                nu_pw2      = st.text_input(t("profile_password2_lbl"), type="password")
+                if st.form_submit_button(t("profile_create_btn"), use_container_width=True):
                     if not nu_username.strip():
-                        st.error("Käyttäjätunnus ei voi olla tyhjä.")
+                        st.error(t("profile_username_empty"))
                     elif len(nu_pw1) < 4:
-                        st.error("Salasanan on oltava vähintään 4 merkkiä.")
+                        st.error(t("profile_pw_short"))
                     elif nu_pw1 != nu_pw2:
-                        st.error("Salasanat eivät täsmää.")
+                        st.error(t("profile_pw_mismatch"))
                     else:
                         ok, msg = create_user(nu_username, nu_pw1, nu_display, nu_email, nu_role)
                         if ok:
@@ -1253,10 +2042,11 @@ def show_profile_sidebar():
                             st.error(msg)
 
         st.markdown("---")
-        if st.button("🚪 Kirjaudu ulos", use_container_width=True):
-            for key in ["logged_in", "user_id", "username", "display_name", "email", "role"]:
+        if st.button(t("profile_logout"), use_container_width=True):
+            for key in ["logged_in", "user_id", "username", "display_name", "email", "role", "lang"]:
                 st.session_state.pop(key, None)
             st.rerun()
+
 
 
 # --- Streamlit UI ---
@@ -1288,7 +2078,7 @@ def main():
 </style>
 <div class="app-header">
   <h2>📈 Osakeanalyysi-työkalu v""" + VERSION + """</h2>
-  <p>Tekninen analyysi, backtesting ja päivittäiset signaalit</p>
+  <p>""" + t("app_subtitle") + """</p>
 </div>
 """, unsafe_allow_html=True)
     
@@ -1362,7 +2152,7 @@ def main():
             if symbols_to_import:
                 st.info(f"Löydetty {len(symbols_to_import)} tunnusta: {', '.join(symbols_to_import[:10])}" +
                         (f" ... (+{len(symbols_to_import)-10} lisää)" if len(symbols_to_import) > 10 else ""))
-                if st.button("✅ Tuo kaikki salkkuun", key="import_file"):
+                if st.button(t("sidebar_import_btn"), key="import_file"):
                     added, skipped, errs = add_stocks_bulk(symbols_to_import, active_portfolio_id)
                     st.success(f"Lisätty: {added}, jo listalla: {skipped}")
                     if errs:
@@ -1386,31 +2176,34 @@ def main():
                         delete_stock(row["symbol"], active_portfolio_id)
                         st.rerun()
         else:
-            st.info("Ei osakkeita. Lisää osakkeita 🇫🇮 Suomen pörssi -välilehdestä.")
+            st.info(t("sidebar_no_stocks"))
 
     # Päänäkymä
     stocks_df = get_stocks(active_portfolio_id)
 
     # Välilehdet — salkku-välilehti ei vaadi osakkeita etukäteen
-    tab1, tab3, tab2, tab4 = st.tabs([
-        "📊 Analyysi",
-        "🇫🇮 Suomen pörssi",
-        "🔁 Backtesting",
-        "ℹ️ Tietoa",
+    tab1, tab3, tab5, tab6, tab7, tab2, tab4 = st.tabs([
+        t("tab_analysis"),
+        t("tab_fi"),
+        t("tab_us"),
+        t("tab_eu"),
+        t("tab_funds"),
+        t("tab_backtest"),
+        t("tab_info"),
     ])
 
     # --- ANALYYSI-välilehti ---
     with tab1:
-        st.subheader(f"📊 Päivittäinen analyysi – {active_portfolio_name}")
+        st.subheader(f"{t('analysis_header')} – {active_portfolio_name}")
 
         if stocks_df.empty:
-            st.info("🇫🇮 Lisää osakkeita Suomen pörssi -välilehdestä aloittaaksesi analyysin")
+            st.info(t("analysis_no_stocks"))
         else:
             col_btn, col_ts = st.columns([1, 3])
             with col_btn:
-                manual_refresh = st.button("🔄 Päivitä nyt")
+                manual_refresh = st.button(t("analysis_refresh"))
             with col_ts:
-                st.caption(f"Viimeksi päivitetty: {datetime.now().strftime('%H:%M:%S')}")
+                st.caption(f"{t('analysis_last_updated')}: {datetime.now().strftime('%H:%M:%S')}")
 
             if manual_refresh:
                 fetch_stock_data.clear()
@@ -1418,7 +2211,7 @@ def main():
 
             # Analysoi kaikki osakkeet
             results = []
-            with st.spinner("Analysoidaan osakkeita..."):
+            with st.spinner(t("analysis_spinner")):
                 for symbol in stocks_df["symbol"]:
                     success, data = get_stock_analysis(symbol)
                     if success:
@@ -1430,17 +2223,17 @@ def main():
                 display_data = []
                 for r in results:
                     display_data.append({
-                        "Tunnus": r["symbol"],
-                        "Yritys": r["company"],
-                        "Hinta (€)": r["price"],
-                        "RSI": r["rsi"] if r["rsi"] else "-",
-                        "SMA50": r["sma50"] if r["sma50"] else "-",
-                        "SMA200": r["sma200"] if r["sma200"] else "-",
-                        "P/E": round(r["pe_ratio"], 2) if r["pe_ratio"] else "-",
-                        "P/B": round(r["pb_ratio"], 2) if r["pb_ratio"] else "-",
-                        "ROE %": round(r["roe"] * 100, 1) if r["roe"] else "-",
-                        "Osinko %": round(r["dividend_yield"], 2) if r["dividend_yield"] else "-",
-                        "Signaali": f"{r['signal_color']} {r['signal']}"
+                        t("col_symbol"): r["symbol"],
+                        t("col_company"): r["company"],
+                        t("col_price_eur"): r["price"],
+                        "RSI": r["rsi"] if r["rsi"] else None,
+                        t("col_sma50"): r["sma50"] if r["sma50"] else None,
+                        t("col_sma200"): r["sma200"] if r["sma200"] else None,
+                        t("col_pe"): round(r["pe_ratio"], 2) if r["pe_ratio"] else None,
+                        t("col_pb"): round(r["pb_ratio"], 2) if r["pb_ratio"] else None,
+                        t("col_roe"): round(r["roe"] * 100, 1) if r["roe"] else None,
+                        t("col_dividend"): round(r["dividend_yield"], 2) if r["dividend_yield"] else None,
+                        t("col_signal"): f"{r['signal_color']} {r['signal']}"
                     })
 
                 df_display = pd.DataFrame(display_data)
@@ -1448,7 +2241,7 @@ def main():
 
                 csv = df_display.to_csv(index=False).encode("utf-8")
                 st.download_button(
-                    label="📥 Lataa CSV",
+                    label=t("analysis_download"),
                     data=csv,
                     file_name=f"osakeanalyysi_{datetime.now().strftime('%Y%m%d')}.csv",
                     mime="text/csv",
@@ -1456,9 +2249,9 @@ def main():
 
                 # --- Fundamenttianalyysi & uutiset per osake ---
                 st.markdown("---")
-                st.subheader("🔍 Yksittäinen osake – fundamentit, kaaviot ja uutiset")
+                st.subheader(t("analysis_detail"))
                 detail_symbol = st.selectbox(
-                    "Valitse osake",
+                    t("analysis_select"),
                     options=[r["symbol"] for r in results],
                     key="detail_selectbox",
                 )
@@ -1544,9 +2337,9 @@ def main():
                                 st.markdown(f"**[{title}]({link})**  \n{pub}  ·  {date_str}")
                                 st.markdown("---")
                         else:
-                            st.info("Ei uutisia saatavilla.")
+                            st.info(t("news_no_news"))
                     except Exception as e:  # noqa: BLE001
-                        st.info("Uutisten haku epäonnistui.")
+                        st.info(t("news_fetch_error"))
 
                 st.markdown("---")
                 st.subheader("📌 Signaalien logiikka")
@@ -1565,20 +2358,584 @@ def main():
 
 
     
+    # --- USA:n PÖRSSI -välilehti ---
+    with tab5:
+        # Lataa tallennettu data DB:stä session_stateen jos sivu on refreshattu
+        if "us_data" not in st.session_state:
+            cached_us_data, cached_us_ts = load_us_cache()
+            if cached_us_data:
+                st.session_state["us_data"] = cached_us_data
+                st.session_state["us_last_sync"] = cached_us_ts
+
+        st.header(t("us_header"))
+        st.markdown(t("us_count", n=len(US_STOCKS)))
+
+        # Auto-refresh asetukset
+        col_ur1, col_ur2 = st.columns([2, 1])
+        with col_ur1:
+            us_auto_refresh = st.toggle(
+                t("fi_auto_refresh"),
+                value=False,
+                key="us_auto_refresh",
+                help=t("us_auto_refresh_help"),
+            )
+        with col_ur2:
+            us_refresh_interval = st.selectbox(
+                t("fi_interval"),
+                options=[60, 120, 300],
+                format_func=lambda x: f"{x//60} min",
+                index=0,
+                disabled=not us_auto_refresh,
+                key="us_refresh_interval",
+            )
+
+        col_ubtn1, col_ubtn2, col_uts = st.columns([1, 1, 4])
+        with col_ubtn1:
+            us_sync_all = st.button(t("fi_sync_all"), key="us_sync")
+        with col_ubtn2:
+            us_clear_cache_btn = st.button(t("fi_clear_cache"), key="us_clear_cache")
+        with col_uts:
+            us_ts_placeholder = st.empty()
+            us_saved_ts = st.session_state.get("us_last_sync")
+            if us_saved_ts:
+                us_ts_placeholder.caption(t("fi_last_synced", ts=us_saved_ts))
+
+        if us_clear_cache_btn:
+            fetch_stock_data.clear()
+            st.toast(t("fi_cache_cleared"), icon="🗑️")
+
+        # Hae data — VAIN kun nappia painetaan manuaalisesti tai auto-refresh on päällä
+        if us_sync_all or us_auto_refresh:
+            st.session_state["us_sync_requested"] = True
+
+        if st.session_state.get("us_sync_requested"):
+            us_results = []
+            us_progress_bar = st.progress(0, text=t("fi_fetching_start"))
+            us_symbols_list = list(US_STOCKS.keys())
+            us_total = len(us_symbols_list)
+
+            for idx, symbol in enumerate(us_symbols_list):
+                try:
+                    df_tmp, info_tmp = fetch_stock_data(symbol, period="6mo")
+                    if not df_tmp.empty:
+                        df_tmp = df_tmp.reset_index()
+                        latest_price = round(df_tmp["Close"].iloc[-1], 2)
+                        prev_price = df_tmp["Close"].iloc[-2] if len(df_tmp) > 1 else latest_price
+                        change_pct = round((latest_price - prev_price) / prev_price * 100, 2)
+                        market_cap = info_tmp.get("marketCap", None)
+                        pe = info_tmp.get("trailingPE", None)
+                        currency = info_tmp.get("currency", "USD")
+
+                        rsi_val = None
+                        sma50_val = None
+                        signal = "🟡 PIDÄ"
+                        if len(df_tmp) >= 15:
+                            rsi_series = ta.momentum.RSIIndicator(df_tmp["Close"], window=14).rsi()
+                            rsi_val = rsi_series.iloc[-1]
+                            rsi_val = round(rsi_val, 1) if pd.notna(rsi_val) else None
+                        if len(df_tmp) >= 50:
+                            sma50_val = round(df_tmp["Close"].rolling(50).mean().iloc[-1], 2)
+
+                        if rsi_val is not None and sma50_val is not None:
+                            if rsi_val < 30 and latest_price > sma50_val:
+                                signal = "🟢 OSTA"
+                            elif rsi_val > 70:
+                                signal = "🔴 MYY"
+
+                        us_results.append({
+                            t("col_symbol"): symbol,
+                            t("col_company"): US_STOCKS[symbol],
+                            t("col_price_usd"): latest_price,
+                            t("col_change"): change_pct,
+                            "RSI": rsi_val,
+                            t("col_sma50"): sma50_val,
+                            t("col_signal"): signal,
+                            t("col_currency"): currency,
+                            t("col_pe"): round(pe, 2) if pe else None,
+                            t("col_market_cap"): f"{market_cap/1e9:.1f} Mrd" if market_cap else None,
+                        })
+                except Exception:  # noqa: BLE001
+                    pass
+                us_progress_bar.progress((idx + 1) / us_total, text=t("fi_fetching", symbol=symbol, idx=idx+1, total=us_total))
+
+            us_progress_bar.empty()
+            st.session_state["us_data"] = us_results
+            st.session_state["us_last_sync"] = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+            save_us_cache(us_results, st.session_state["us_last_sync"])
+            st.session_state["us_sync_requested"] = False
+            st.session_state.pop("us_signal_filter", None)
+            st.session_state.pop("us_search", None)
+            st.rerun()
+
+        if "us_data" in st.session_state and st.session_state["us_data"]:
+            us_df = pd.DataFrame(st.session_state["us_data"])
+            us_df = _remap_df_columns(us_df, [
+                "col_symbol", "col_company", "col_price_usd", "col_change",
+                "col_sma50", "col_signal", "col_currency", "col_pe", "col_market_cap",
+            ])
+
+            col_uf1, col_uf2 = st.columns([3, 1])
+            with col_uf1:
+                search_us = st.text_input(t("fi_search"), "", key="us_search")
+            with col_uf2:
+                us_signal_filter = st.selectbox(
+                    t("fi_signal_filter"),
+                    options=[t("fi_signal_all"), "🟢 OSTA", "🔴 MYY", "🟡 PIDÄ"],
+                    key="us_signal_filter",
+                )
+
+            us_sym_col = t("col_symbol")
+            us_co_col  = t("col_company")
+            us_sig_col = t("col_signal")
+            us_chg_col = t("col_change")
+            if search_us:
+                mask_us = (
+                    us_df[us_sym_col].str.contains(search_us.upper(), na=False)
+                    | us_df[us_co_col].str.contains(search_us, case=False, na=False)
+                )
+                us_df = us_df[mask_us]
+            if us_signal_filter != t("fi_signal_all") and us_sig_col in us_df.columns:
+                us_df = us_df[us_df[us_sig_col] == us_signal_filter]
+
+            def color_change_us(val: object) -> str:
+                """Väritää muutos %-arvo vihreäksi tai punaiseksi."""
+                if isinstance(val, (int, float)):
+                    return "color: green" if val > 0 else ("color: red" if val < 0 else "")
+                return ""
+
+            def color_signal_us(val: object) -> str:
+                """Väritää signaalin vihreäksi/punaiseksi."""
+                if isinstance(val, str):
+                    if "OSTA" in val:
+                        return "color: green; font-weight: bold"
+                    if "MYY" in val:
+                        return "color: red; font-weight: bold"
+                return ""
+
+            if us_sig_col in us_df.columns:
+                styled_us = us_df.style.map(color_change_us, subset=[us_chg_col]).map(
+                    color_signal_us, subset=[us_sig_col]
+                )
+            else:
+                styled_us = us_df.style.map(color_change_us, subset=[us_chg_col])
+            st.dataframe(styled_us, width='stretch', hide_index=True)
+
+            # Lisää yksittäisiä US-osakkeita salkkuun
+            st.markdown("---")
+            col_usel1, col_usel2 = st.columns([2, 1])
+            with col_usel1:
+                selected_us = st.multiselect(
+                    t("us_add_multiselect"),
+                    options=list(US_STOCKS.keys()),
+                    format_func=lambda s: f"{s} – {US_STOCKS[s]}",
+                    key="us_multiselect",
+                )
+            with col_usel2:
+                st.write("")
+                st.write("")
+                if st.button(t("us_add_btn"), key="us_add_selected") and selected_us:
+                    added, skipped, errs = add_stocks_bulk(selected_us, active_portfolio_id)
+                    st.success(t("fi_added", portfolio=active_portfolio_name, added=added, skipped=skipped))
+                    st.rerun()
+
+            csv_us = us_df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label=t("us_download"),
+                data=csv_us,
+                file_name=f"usa_porssi_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+            )
+        else:
+            st.info(t("fi_press_sync"))
+
+        # Auto-refresh loppusilmukka
+        if us_auto_refresh:
+            time.sleep(us_refresh_interval)
+            fetch_stock_data.clear()
+            st.session_state["us_sync_requested"] = True
+            st.rerun()
+
+    # --- EU / POHJOISMAAT ETF:t -välilehti ---
+    with tab6:
+        if "eu_data" not in st.session_state:
+            cached_eu_data, cached_eu_ts = load_eu_cache()
+            if cached_eu_data:
+                st.session_state["eu_data"] = cached_eu_data
+                st.session_state["eu_last_sync"] = cached_eu_ts
+
+        st.header(t("eu_header"))
+        st.markdown(t("eu_count", n=len(EU_ETFS)))
+
+        col_er1, col_er2 = st.columns([2, 1])
+        with col_er1:
+            eu_auto_refresh = st.toggle(
+                t("fi_auto_refresh"),
+                value=False,
+                key="eu_auto_refresh",
+                help=t("eu_auto_refresh_help"),
+            )
+        with col_er2:
+            eu_refresh_interval = st.selectbox(
+                t("fi_interval"),
+                options=[60, 120, 300],
+                format_func=lambda x: f"{x//60} min",
+                index=0,
+                disabled=not eu_auto_refresh,
+                key="eu_refresh_interval",
+            )
+
+        col_ebtn1, col_ebtn2, col_ets = st.columns([1, 1, 4])
+        with col_ebtn1:
+            eu_sync_all = st.button(t("fi_sync_all"), key="eu_sync")
+        with col_ebtn2:
+            eu_clear_cache_btn = st.button(t("fi_clear_cache"), key="eu_clear_cache")
+        with col_ets:
+            eu_ts_placeholder = st.empty()
+            eu_saved_ts = st.session_state.get("eu_last_sync")
+            if eu_saved_ts:
+                eu_ts_placeholder.caption(t("fi_last_synced", ts=eu_saved_ts))
+
+        if eu_clear_cache_btn:
+            fetch_stock_data.clear()
+            st.toast(t("fi_cache_cleared"), icon="🗑️")
+
+        if eu_sync_all or eu_auto_refresh:
+            st.session_state["eu_sync_requested"] = True
+
+        if st.session_state.get("eu_sync_requested"):
+            eu_results = []
+            eu_progress_bar = st.progress(0, text=t("fi_fetching_start"))
+            eu_symbols_list = list(EU_ETFS.keys())
+            eu_total = len(eu_symbols_list)
+
+            for idx, symbol in enumerate(eu_symbols_list):
+                try:
+                    df_tmp, info_tmp = fetch_stock_data(symbol, period="6mo")
+                    if not df_tmp.empty:
+                        df_tmp = df_tmp.reset_index()
+                        latest_price = round(df_tmp["Close"].iloc[-1], 4)
+                        prev_price = df_tmp["Close"].iloc[-2] if len(df_tmp) > 1 else latest_price
+                        change_pct = round((latest_price - prev_price) / prev_price * 100, 2)
+                        currency = info_tmp.get("currency", "EUR")
+
+                        rsi_val = None
+                        sma50_val = None
+                        signal = "🟡 PIDÄ"
+                        if len(df_tmp) >= 15:
+                            rsi_series = ta.momentum.RSIIndicator(df_tmp["Close"], window=14).rsi()
+                            rsi_val = rsi_series.iloc[-1]
+                            rsi_val = round(rsi_val, 1) if pd.notna(rsi_val) else None
+                        if len(df_tmp) >= 50:
+                            sma50_val = round(df_tmp["Close"].rolling(50).mean().iloc[-1], 4)
+
+                        if rsi_val is not None and sma50_val is not None:
+                            if rsi_val < 30 and latest_price > sma50_val:
+                                signal = "🟢 OSTA"
+                            elif rsi_val > 70:
+                                signal = "🔴 MYY"
+
+                        eu_results.append({
+                            t("col_symbol"): symbol,
+                            t("col_etf_name"): EU_ETFS[symbol],
+                            t("col_price_eur"): latest_price,
+                            t("col_change"): change_pct,
+                            "RSI": rsi_val,
+                            t("col_sma50"): sma50_val,
+                            t("col_signal"): signal,
+                            t("col_currency"): currency,
+                        })
+                except Exception:  # noqa: BLE001
+                    pass
+                eu_progress_bar.progress((idx + 1) / eu_total, text=t("fi_fetching", symbol=symbol, idx=idx+1, total=eu_total))
+
+            eu_progress_bar.empty()
+            st.session_state["eu_data"] = eu_results
+            st.session_state["eu_last_sync"] = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+            save_eu_cache(eu_results, st.session_state["eu_last_sync"])
+            st.session_state["eu_sync_requested"] = False
+            st.session_state.pop("eu_signal_filter", None)
+            st.session_state.pop("eu_search", None)
+            st.rerun()
+
+        if "eu_data" in st.session_state and st.session_state["eu_data"]:
+            eu_df = pd.DataFrame(st.session_state["eu_data"])
+            eu_df = _remap_df_columns(eu_df, [
+                "col_symbol", "col_etf_name", "col_price_eur", "col_change",
+                "col_sma50", "col_signal", "col_currency",
+            ])
+
+            col_ef1, col_ef2 = st.columns([3, 1])
+            with col_ef1:
+                search_eu = st.text_input(t("eu_search"), "", key="eu_search")
+            with col_ef2:
+                eu_signal_filter = st.selectbox(
+                    t("fi_signal_filter"),
+                    options=[t("fi_signal_all"), "🟢 OSTA", "🔴 MYY", "🟡 PIDÄ"],
+                    key="eu_signal_filter",
+                )
+
+            eu_sym_col = t("col_symbol")
+            eu_nm_col  = t("col_etf_name")
+            eu_sig_col = t("col_signal")
+            eu_chg_col = t("col_change")
+            if search_eu:
+                mask_eu = (
+                    eu_df[eu_sym_col].str.contains(search_eu.upper(), na=False)
+                    | eu_df[eu_nm_col].str.contains(search_eu, case=False, na=False)
+                )
+                eu_df = eu_df[mask_eu]
+            if eu_signal_filter != t("fi_signal_all") and eu_sig_col in eu_df.columns:
+                eu_df = eu_df[eu_df[eu_sig_col] == eu_signal_filter]
+
+            def color_change_eu(val: object) -> str:
+                """Väritää muutos %-arvo vihreäksi tai punaiseksi."""
+                if isinstance(val, (int, float)):
+                    return "color: green" if val > 0 else ("color: red" if val < 0 else "")
+                return ""
+
+            def color_signal_eu(val: object) -> str:
+                """Väritää signaalin vihreäksi/punaiseksi."""
+                if isinstance(val, str):
+                    if "OSTA" in val:
+                        return "color: green; font-weight: bold"
+                    if "MYY" in val:
+                        return "color: red; font-weight: bold"
+                return ""
+
+            if eu_sig_col in eu_df.columns:
+                styled_eu = eu_df.style.map(color_change_eu, subset=[eu_chg_col]).map(
+                    color_signal_eu, subset=[eu_sig_col]
+                )
+            else:
+                styled_eu = eu_df.style.map(color_change_eu, subset=[eu_chg_col])
+            st.dataframe(styled_eu, width='stretch', hide_index=True)
+
+            # Lisää ETF:iä salkkuun
+            st.markdown("---")
+            col_esel1, col_esel2 = st.columns([2, 1])
+            with col_esel1:
+                selected_eu = st.multiselect(
+                    t("eu_add_multiselect"),
+                    options=list(EU_ETFS.keys()),
+                    format_func=lambda s: f"{s} – {EU_ETFS[s]}",
+                    key="eu_multiselect",
+                )
+            with col_esel2:
+                st.write("")
+                st.write("")
+                if st.button(t("eu_add_btn"), key="eu_add_selected") and selected_eu:
+                    added, skipped, errs = add_stocks_bulk(selected_eu, active_portfolio_id)
+                    st.success(t("fi_added", portfolio=active_portfolio_name, added=added, skipped=skipped))
+                    st.rerun()
+
+            csv_eu = eu_df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label=t("eu_download"),
+                data=csv_eu,
+                file_name=f"eu_etf_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+            )
+        else:
+            st.info(t("fi_press_sync"))
+
+        if eu_auto_refresh:
+            time.sleep(eu_refresh_interval)
+            fetch_stock_data.clear()
+            st.session_state["eu_sync_requested"] = True
+            st.rerun()
+
+    # --- OMAT RAHASTOT -välilehti ---
+    with tab7:
+        active_user_id = st.session_state.get("user_id", 1)
+        st.header(t("funds_header"))
+        st.markdown(t("funds_desc"))
+
+        user_funds = get_funds(active_user_id)
+
+        # --- Lisää uusi rahasto ---
+        with st.expander("➕ Lisää uusi rahasto", expanded=not user_funds):
+            with st.form("add_fund_form"):
+                fn_col1, fn_col2 = st.columns([2, 1])
+                with fn_col1:
+                    new_fund_name = st.text_input("Rahaston nimi *", placeholder="esim. OP-Suomi Indeksi")
+                with fn_col2:
+                    new_fund_isin = st.text_input("ISIN-koodi (valinnainen)", placeholder="esim. FI0008807637")
+                new_fund_notes = st.text_input("Muistiinpanot (valinnainen)", placeholder="esim. Kuukausisäästö 100 €/kk")
+                submit_fund = st.form_submit_button("✅ Lisää rahasto")
+                if submit_fund:
+                    if not new_fund_name.strip():
+                        st.error(t("funds_name_required"))
+                    else:
+                        ok, msg = add_fund(active_user_id, new_fund_name, new_fund_isin, new_fund_notes)
+                        if ok:
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
+
+        if not user_funds:
+            st.info(t("funds_empty"))
+        else:
+            # --- Rahastokohtainen näkymä ---
+            fund_options = {f["id"]: f"{f['name']}{' (' + f['isin'] + ')' if f['isin'] else ''}" for f in user_funds}
+            selected_fund_id = st.selectbox(
+                t("funds_select"),
+                options=list(fund_options.keys()),
+                format_func=lambda fid: fund_options[fid],
+                key="fund_selectbox",
+            )
+            selected_fund = next(f for f in user_funds if f["id"] == selected_fund_id)
+
+            fund_col1, fund_col2 = st.columns([3, 1])
+            with fund_col1:
+                st.markdown(f"#### {selected_fund['name']}")
+                if selected_fund["isin"]:
+                    st.caption(f"ISIN: `{selected_fund['isin']}`")
+                if selected_fund["notes"]:
+                    st.caption(f"📝 {selected_fund['notes']}")
+            with fund_col2:
+                if st.button(t("funds_delete_btn"), key="del_fund_btn"):
+                    st.session_state["confirm_del_fund"] = selected_fund_id
+
+            if st.session_state.get("confirm_del_fund") == selected_fund_id:
+                st.warning(t("funds_confirm_delete", name=selected_fund['name']))
+                cc1, cc2 = st.columns(2)
+                with cc1:
+                    if st.button(t("funds_confirm_yes"), key="confirm_del_fund_yes"):
+                        delete_fund(selected_fund_id)
+                        st.session_state.pop("confirm_del_fund", None)
+                        st.rerun()
+                with cc2:
+                    if st.button(t("funds_confirm_no"), key="confirm_del_fund_no"):
+                        st.session_state.pop("confirm_del_fund", None)
+                        st.rerun()
+
+            st.markdown("---")
+
+            # --- Lisää NAV-kirjaus ---
+            with st.form("add_nav_form"):
+                nav_col1, nav_col2, nav_col3 = st.columns([1, 1, 1])
+                with nav_col1:
+                    nav_date_input = st.date_input(
+                        t("funds_nav_date"),
+                        value=datetime.today(),
+                        key="nav_date_input",
+                    )
+                with nav_col2:
+                    nav_value_input = st.number_input(
+                        t("funds_nav_value"),
+                        min_value=0.0001,
+                        step=0.01,
+                        format="%.4f",
+                        key="nav_value_input",
+                    )
+                with nav_col3:
+                    st.write("")
+                    st.write("")
+                    submit_nav = st.form_submit_button(t("funds_nav_save"))
+                if submit_nav:
+                    ok, msg = add_fund_nav(
+                        selected_fund_id,
+                        float(nav_value_input),
+                        nav_date_input.strftime("%Y-%m-%d"),
+                    )
+                    if ok:
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
+
+            # --- NAV-historia ---
+            nav_df = get_fund_nav_history(selected_fund_id)
+
+            if nav_df.empty:
+                st.info(t("funds_no_entries"))
+            else:
+                nav_df["nav_date"] = pd.to_datetime(nav_df["nav_date"])
+                nav_df = nav_df.sort_values("nav_date")
+
+                first_nav = nav_df["nav"].iloc[0]
+                last_nav = nav_df["nav"].iloc[-1]
+                total_return = (last_nav - first_nav) / first_nav * 100
+                last_date = nav_df["nav_date"].iloc[-1].strftime("%d.%m.%Y")
+                first_date = nav_df["nav_date"].iloc[0].strftime("%d.%m.%Y")
+
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric(t("funds_latest_nav"), f"{last_nav:.4f} €", help=f"{t('funds_nav_date')}: {last_date}")
+                m2.metric(t("funds_first_nav"), f"{first_nav:.4f} €", help=f"{t('funds_nav_date')}: {first_date}")
+                arrow = "▲" if total_return >= 0 else "▼"
+                m3.metric(t("funds_total_return"), f"{arrow} {total_return:+.2f} %")
+                m4.metric(t("funds_entries_count"), f"{len(nav_df)} kpl")
+
+                # Kehityskäyrä
+                fig_fund = go.Figure()
+                fig_fund.add_trace(go.Scatter(
+                    x=nav_df["nav_date"],
+                    y=nav_df["nav"],
+                    mode="lines+markers",
+                    name="NAV",
+                    line={"color": "#1a73e8", "width": 2},
+                    marker={"size": 5},
+                    hovertemplate="%{x|%d.%m.%Y}: <b>%{y:.4f} €</b><extra></extra>",
+                ))
+                fig_fund.update_layout(
+                    title=t("funds_chart_title", name=selected_fund['name']),
+                    xaxis_title=t("funds_nav_date"),
+                    yaxis_title=t("funds_nav_value"),
+                    height=380,
+                    hovermode="x unified",
+                    margin={"l": 40, "r": 20, "t": 50, "b": 40},
+                )
+                st.plotly_chart(fig_fund, use_container_width=True)
+
+                # NAV-taulukko muokkausmahdollisuudella
+                st.markdown(t("funds_entries_header"))
+                nav_display = nav_df.copy()
+                nav_display["nav_date"] = nav_display["nav_date"].dt.strftime("%d.%m.%Y")
+                nav_display = nav_display.rename(columns={"nav_date": t("funds_col_date"), "nav": t("funds_col_nav")})
+                st.dataframe(nav_display, hide_index=True, use_container_width=True)
+
+                # Poista yksittäinen kirjaus
+                with st.expander(t("funds_delete_entry_expander")):
+                    del_date_options = nav_df["nav_date"].dt.strftime("%Y-%m-%d").tolist()
+                    del_date = st.selectbox(
+                        t("funds_delete_entry_select"),
+                        options=del_date_options,
+                        format_func=lambda d: datetime.strptime(d, "%Y-%m-%d").strftime("%d.%m.%Y"),
+                        key="del_nav_date",
+                    )
+                    if st.button(t("funds_delete_entry_btn"), key="del_nav_btn"):
+                        delete_fund_nav(selected_fund_id, del_date)
+                        st.rerun()
+
+                # CSV-lataus
+                csv_nav = nav_display.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label=t("funds_download"),
+                    data=csv_nav,
+                    file_name=f"{selected_fund['name'].replace(' ', '_')}_nav_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv",
+                )
+
+
+        # --- NAV-lähdetiedot ---
+        st.markdown("---")
+        st.markdown(t("funds_nav_where_header"))
+        st.markdown(t("funds_nav_where_body"))
     # --- BACKTESTING-välilehti ---
     with tab2:
-        st.header("🔁 Backtesting - Strategian testaus")
-        st.markdown("Testaa kuinka eri strategiat olisivat toimineet historialla")
+        st.header(t("bt_header"))
+        st.markdown(t("bt_desc"))
 
         # Osakevalinta
         bt_symbols = list(stocks_df["symbol"]) if not stocks_df.empty else []
-        bt_options = ["📂 Kaikki salkun osakkeet"] + bt_symbols
+        bt_options = [t("bt_all_stocks")] + bt_symbols
         bt_selection = st.selectbox(
-            "📈 Osake",
+            t("bt_stock_label"),
             options=bt_options,
-            help="Valitse yksittäinen osake tai aja kaikille salkun osakkeille",
+            help=t("bt_all_stocks"),
         )
-        bt_symbols_to_run = bt_symbols if bt_selection == "📂 Kaikki salkun osakkeet" else [bt_selection]
+        bt_symbols_to_run = bt_symbols if bt_selection == t("bt_all_stocks") else [bt_selection]
 
         col1, col2 = st.columns(2)
         with col1:
@@ -1606,9 +2963,9 @@ def main():
             )
         commission = commission_pct / 100
 
-        if st.button("▶️ Aja backtesting"):
+        if st.button(t("bt_run_btn")):
             if not bt_symbols_to_run:
-                st.warning("Lisää ensin osakkeita omaan salkkuun.")
+                st.warning(t("bt_no_stocks"))
             else:
                 backtest_results = []
                 with st.spinner("Ajetaan backtestingiä..."):
@@ -1651,7 +3008,7 @@ def main():
                                 return "background-color: lightcoral"
                         return ""
 
-                    styled_df = df_display.style.applymap(
+                    styled_df = df_display.style.map(
                         highlight_performance, subset=["Ylisuoritus (%)", "Max Drawdown (%)"]
                     )
                     st.dataframe(styled_df, width='stretch', hide_index=True)
@@ -1693,7 +3050,7 @@ def main():
             st.subheader(f"📈 Kaaviot – {strategy_label}")
 
             symbols = [r["symbol"] for r in bt_res]
-            selected_symbol = st.selectbox("Valitse osake", symbols, key="bt_symbol_select")
+            selected_symbol = st.selectbox(t("bt_select_stock"), symbols, key="bt_symbol_select")
             selected_data = next((r for r in bt_res if r["symbol"] == selected_symbol), None)
 
             if selected_data:
@@ -1744,24 +3101,21 @@ def main():
                 st.session_state["fi_data"] = cached_data
                 st.session_state["fi_last_sync"] = cached_ts
 
-        st.header("🇫🇮 Suomen pörssi – Nasdaq Helsinki (OMXH)")
-        st.markdown(
-            f"Lista sisältää **{len(FINNISH_STOCKS)}** Helsingin pörssin osaketta. "
-            "Kurssit haetaan Yahoo Financesta (.HE-suffiksi)."
-        )
+        st.header(t("fi_header"))
+        st.markdown(t("fi_count", n=len(FINNISH_STOCKS)))
 
         # Auto-refresh asetukset
         col_r1, col_r2 = st.columns([2, 1])
         with col_r1:
             fi_auto_refresh = st.toggle(
-                "🔄 Automaattinen päivitys",
+                t("fi_auto_refresh"),
                 value=False,
                 key="fi_auto_refresh",
-                help="Päivittää Suomen pörssin datan automaattisesti",
+                help=t("fi_auto_refresh_help"),
             )
         with col_r2:
             fi_refresh_interval = st.selectbox(
-                "Väli",
+                t("fi_interval"),
                 options=[60, 120, 300],
                 format_func=lambda x: f"{x//60} min",
                 index=0,
@@ -1771,18 +3125,18 @@ def main():
 
         col_btn1, col_btn2, col_ts = st.columns([1, 1, 4])
         with col_btn1:
-            sync_all = st.button("🔄 Synkkaa kaikki", key="fi_sync")
+            sync_all = st.button(t("fi_sync_all"), key="fi_sync")
         with col_btn2:
-            clear_cache_btn = st.button("🗑️ Tyhjennä cache", key="fi_clear_cache")
+            clear_cache_btn = st.button(t("fi_clear_cache"), key="fi_clear_cache")
         with col_ts:
             ts_placeholder = st.empty()
             saved_ts = st.session_state.get("fi_last_sync")
             if saved_ts:
-                ts_placeholder.caption(f"🕒 Viimeksi synkattu: **{saved_ts}**")
+                ts_placeholder.caption(t("fi_last_synced", ts=saved_ts))
 
         if clear_cache_btn:
             fetch_stock_data.clear()
-            st.toast("Cache tyhjennetty!", icon="🗑️")
+            st.toast(t("fi_cache_cleared"), icon="🗑️")
 
         # Hae data — VAIN kun nappia painetaan manuaalisesti tai auto-refresh on päällä
         if sync_all or fi_auto_refresh:
@@ -1790,7 +3144,7 @@ def main():
 
         if st.session_state.get("fi_sync_requested"):
             fi_results = []
-            progress_bar = st.progress(0, text="Haetaan kursseja...")
+            progress_bar = st.progress(0, text=t("fi_fetching_start"))
             symbols_list = list(FINNISH_STOCKS.keys())
             total = len(symbols_list)
 
@@ -1825,20 +3179,20 @@ def main():
                                 signal = "🔴 MYY"
 
                         fi_results.append({
-                            "Tunnus": symbol,
-                            "Yritys": FINNISH_STOCKS[symbol],
-                            "Hinta": latest_price,
-                            "Muutos %": change_pct,
-                            "RSI": rsi_val if rsi_val is not None else "-",
-                            "SMA50": sma50_val if sma50_val is not None else "-",
-                            "Signaali": signal,
-                            "Valuutta": currency,
-                            "P/E": round(pe, 2) if pe else "-",
-                            "Markkina-arvo": f"{market_cap/1e9:.1f} Mrd" if market_cap else "-",
+                            t("col_symbol"): symbol,
+                            t("col_company"): FINNISH_STOCKS[symbol],
+                            t("col_price_eur"): latest_price,
+                            t("col_change"): change_pct,
+                            "RSI": rsi_val,
+                            t("col_sma50"): sma50_val,
+                            t("col_signal"): signal,
+                            t("col_currency"): currency,
+                            t("col_pe"): round(pe, 2) if pe else None,
+                            t("col_market_cap"): f"{market_cap/1e9:.1f} Mrd" if market_cap else None,
                         })
                 except Exception as e:  # noqa: BLE001
                     pass  # virheelliset ohitetaan hiljaisesti
-                progress_bar.progress((idx + 1) / total, text=f"Haetaan: {symbol} ({idx+1}/{total})")
+                progress_bar.progress((idx + 1) / total, text=t("fi_fetching", symbol=symbol, idx=idx+1, total=total))
 
             progress_bar.empty()
             st.session_state["fi_data"] = fi_results
@@ -1851,26 +3205,34 @@ def main():
 
         if "fi_data" in st.session_state and st.session_state["fi_data"]:
             fi_df = pd.DataFrame(st.session_state["fi_data"])
+            fi_df = _remap_df_columns(fi_df, [
+                "col_symbol", "col_company", "col_price_eur", "col_change",
+                "col_sma50", "col_signal", "col_currency", "col_pe", "col_market_cap",
+            ])
 
             # Suodatin — lisätty signaali-suodatin
             col_f1, col_f2 = st.columns([3, 1])
             with col_f1:
-                search_fi = st.text_input("🔍 Hae yhtiötä tai tunnusta", "", key="fi_search")
+                search_fi = st.text_input(t("fi_search"), "", key="fi_search")
             with col_f2:
                 signal_filter = st.selectbox(
-                    "Signaali",
-                    options=["Kaikki", "🟢 OSTA", "🔴 MYY", "🟡 PIDÄ"],
+                    t("fi_signal_filter"),
+                    options=[t("fi_signal_all"), "🟢 OSTA", "🔴 MYY", "🟡 PIDÄ"],
                     key="fi_signal_filter",
                 )
 
+            sym_col = t("col_symbol")
+            co_col  = t("col_company")
+            sig_col = t("col_signal")
+            chg_col = t("col_change")
             if search_fi:
                 mask = (
-                    fi_df["Tunnus"].str.contains(search_fi.upper(), na=False)
-                    | fi_df["Yritys"].str.contains(search_fi, case=False, na=False)
+                    fi_df[sym_col].str.contains(search_fi.upper(), na=False)
+                    | fi_df[co_col].str.contains(search_fi, case=False, na=False)
                 )
                 fi_df = fi_df[mask]
-            if signal_filter != "Kaikki" and "Signaali" in fi_df.columns:
-                fi_df = fi_df[fi_df["Signaali"] == signal_filter]
+            if signal_filter != t("fi_signal_all") and sig_col in fi_df.columns:
+                fi_df = fi_df[fi_df[sig_col] == signal_filter]
 
             # Väritä muutos % ja signaali
             def color_change(val):
@@ -1886,13 +3248,12 @@ def main():
                         return "color: red; font-weight: bold"
                 return ""
 
-            style_cols = {"Muutos %": color_change}
-            if "Signaali" in fi_df.columns:
-                styled = fi_df.style.applymap(color_change, subset=["Muutos %"]).applymap(
-                    color_signal, subset=["Signaali"]
+            if sig_col in fi_df.columns:
+                styled = fi_df.style.map(color_change, subset=[chg_col]).map(
+                    color_signal, subset=[sig_col]
                 )
             else:
-                styled = fi_df.style.applymap(color_change, subset=["Muutos %"])
+                styled = fi_df.style.map(color_change, subset=[chg_col])
             st.dataframe(styled, width='stretch', hide_index=True)
 
             # Lisää yksittäisiä osakkeita salkkuun taulukosta
@@ -1900,7 +3261,7 @@ def main():
             col_sel1, col_sel2 = st.columns([2, 1])
             with col_sel1:
                 selected_fi = st.multiselect(
-                    "Valitse osakkeet salkkuun lisäämistä varten",
+                    t("fi_add_multiselect"),
                     options=list(FINNISH_STOCKS.keys()),
                     format_func=lambda s: f"{s} – {FINNISH_STOCKS[s]}",
                     key="fi_multiselect",
@@ -1908,21 +3269,21 @@ def main():
             with col_sel2:
                 st.write("")
                 st.write("")
-                if st.button("➕ Lisää valitut salkkuun", key="fi_add_selected") and selected_fi:
+                if st.button(t("fi_add_btn"), key="fi_add_selected") and selected_fi:
                     added, skipped, errs = add_stocks_bulk(selected_fi, active_portfolio_id)
-                    st.success(f"Lisätty '{active_portfolio_name}': {added}, jo listalla: {skipped}")
+                    st.success(t("fi_added", portfolio=active_portfolio_name, added=added, skipped=skipped))
                     st.rerun()
 
             # CSV-lataus
             csv_fi = fi_df.to_csv(index=False).encode("utf-8")
             st.download_button(
-                label="📥 Lataa taulukko CSV",
+                label=t("fi_download"),
                 data=csv_fi,
                 file_name=f"suomen_porssi_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                 mime="text/csv",
             )
         else:
-            st.info("Paina **🔄 Synkkaa kaikki** ladataksesi ajantasaiset kurssit.")
+            st.info(t("fi_press_sync"))
 
         # Auto-refresh loppusilmukka
         if fi_auto_refresh:
@@ -1933,43 +3294,104 @@ def main():
 
     # --- TIETOA-välilehti ---
     with tab4:
-        st.header("ℹ️ Tietoa työkalusta")
-        st.caption(f"Versio {VERSION} | Päivitetty {datetime.now().strftime('%d.%m.%Y')}")
-        
-        st.markdown("""
+        st.header(t("info_header"))
+        st.caption(f"{t('info_version')} {VERSION} | {t('info_updated')} {datetime.now().strftime('%d.%m.%Y')}")
+
+        if st.session_state.get("lang", "fi") == "en":
+            st.markdown("""
+        ### 🎯 What does this tool do?
+
+        This is a stock analysis tool that helps you:
+        - 📊 Track daily technical analysis of stocks
+        - 🔔 Receive buy/sell/hold signals
+        - 🔁 Backtest strategies on historical data
+        - 📈 Visualize prices, indicators and trading signals
+
+        ### 📈 Technical Indicators
+
+        **RSI (Relative Strength Index)**
+        - Measures the speed and magnitude of price changes
+        - < 30: Oversold (potential buying opportunity)
+        - > 70: Overbought (potential selling opportunity)
+
+        **SMA50 (50-day moving average)**
+        - Short-term trend
+        - Price above SMA50 = uptrend
+
+        **SMA200 (200-day moving average)**
+        - Long-term trend
+        - Price below SMA200 = possible weak trend
+
+        ### 🔁 Backtesting
+
+        Backtesting tests how your strategy would have performed in the past:
+        - **Strategy**: Active buy/sell according to signals
+        - **Buy & Hold**: Buy at start, hold until end
+
+        ⚠️ **IMPORTANT**: Past performance does not guarantee future returns!
+
+        ### 🛠️ Technologies
+
+        - **Python**: Programming language
+        - **Streamlit**: Web interface
+        - **yfinance**: Stock price data (Yahoo Finance)
+        - **pandas**: Data processing
+        - **ta**: Technical indicators
+        - **plotly**: Interactive charts
+        - **SQLite**: Data storage
+
+        ### ⚠️ Disclaimer
+
+        This tool is intended for educational and research purposes only.
+
+        - Not investment advice
+        - Does not guarantee returns
+        - Use at your own risk
+        - Always consult a professional before making investment decisions
+
+        ### 📝 Future Development Ideas
+
+        - 🔔 Email/Telegram notifications
+        - 🌍 Multi-strategy optimisation (parameter search)
+        - 📊 Side-by-side strategy comparison in the same chart
+        - 💼 Portfolio optimisation (e.g. Markowitz)
+        - 🤖 ML-based signals
+            """)
+        else:
+            st.markdown("""
         ### 🎯 Mitä tämä työkalu tekee?
-        
+
         Tämä on osakeanalyysi-työkalu, joka auttaa sinua:
         - 📊 Seuraamaan osakkeiden teknistä analyysiä päivittäin
         - 🔔 Saamaan osto/myynti/pidä-signaaleja
         - 🔁 Testaamaan strategioita historiallisella datalla (backtesting)
         - 📈 Visualisoimaan hintoja, indikaattoreita ja kaupankäyntisignaaleja
-        
+
         ### 📈 Tekniset indikaattorit
-        
+
         **RSI (Relative Strength Index)**
         - Mittaa hinnanmuutoksen nopeutta ja suuruutta
         - < 30: Ylimyyty (mahdollinen ostotilaisuus)
         - > 70: Yliostettu (mahdollinen myyntitilaisuus)
-        
+
         **SMA50 (50 päivän liukuva keskiarvo)**
         - Lyhyen aikavälin trendi
         - Hinta SMA50 yläpuolella = nouseva trendi
-        
+
         **SMA200 (200 päivän liukuva keskiarvo)**
         - Pitkän aikavälin trendi
         - Hinta SMA200 alapuolella = mahdollinen heikko trendi
-        
+
         ### 🔁 Backtesting
-        
+
         Backtesting testaa kuinka strategiasi olisi toiminut menneisyydessä:
         - **Strategia**: Aktiivinen osto/myynti signaalien mukaan
         - **Buy & Hold**: Osta alussa, pidä loppuun
-        
+
         ⚠️ **TÄRKEÄÄ**: Historiallinen suorituskyky ei takaa tulevaa tuottoa!
-        
+
         ### 🛠️ Teknologiat
-        
+
         - **Python**: Ohjelmointikieli
         - **Streamlit**: Web-käyttöliittymä
         - **yfinance**: Osakekurssien haku (Yahoo Finance)
@@ -1977,16 +3399,16 @@ def main():
         - **ta**: Tekniset indikaattorit
         - **plotly**: Interaktiiviset kaaviot
         - **SQLite**: Osakkeiden tallennus
-        
+
         ### ⚠️ Vastuuvapauslauseke
-        
+
         Tämä työkalu on tarkoitettu vain koulutus- ja tutkimustarkoituksiin.
-        
+
         - Ei ole sijoitusneuvontaa
         - Ei takaa tuottoja
         - Käytä omalla vastuullasi
         - Konsultoi aina ammattilaista ennen sijoituspäätöksiä
-        
+
         ### 📝 Jatkokehitysideoita
 
         - 🔔 Sähköposti/Telegram-ilmoitukset
@@ -1994,7 +3416,7 @@ def main():
         - 📊 Strategioiden rinnakkainen vertailu samassa kaaviossa
         - 💼 Portfolio-optimointi (esim. Markowitz)
         - 🤖 ML-pohjainen signaali
-        """)
+            """)
 
 if __name__ == "__main__":
     main()
