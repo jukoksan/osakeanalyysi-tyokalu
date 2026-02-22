@@ -1,0 +1,40 @@
+name: CI – Unit testit
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+jobs:
+  test:
+    name: Pytest (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout koodi
+        uses: actions/checkout@v4
+
+      - name: Aseta Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Asenna riippuvuudet
+        run: pip install -r requirements.txt
+
+      - name: Aja unit testit
+        run: python -m pytest tests/ -v --tb=short --junitxml=test-results.xml
+
+      - name: Julkaise testitulokset
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: test-results.xml

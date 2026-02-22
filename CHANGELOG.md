@@ -8,6 +8,8 @@ ja projekti noudattaa [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [1.10.0] - 2026-02-22
 
 ### Lisätty
+- 🧪 **Unit testit** – 65 pytest-testiä kattavat: salasanahashaus, käännösfunktio, DataFrame-sarakkeiden uudelleennimeäminen, osaketunnusten parsinta, käyttäjähallinta (CRUD), salkku & osakkeet, rahastot & NAV-kirjaukset, signaalien generointi (4 strategiaa), kaupankäynnin simulointi
+- 🔁 **GitHub Actions CI-pipeline** – unit testit ajetaan automaattisesti jokaisessa pull requestissa ja push:ssa (`main`/`master`), Python 3.11 & 3.12 matriisilla
 - 🌐 **Monikielisyys (Suomi / English)** – koko käyttöliittymä suomeksi ja englanniksi
   - `TRANSLATIONS`-sanakirja (~300 avainta) kattaa kaikki välilehdet, otsikot, napit, sarakkeiden nimet ja virheilmoitukset
   - `t(key, **kwargs)`-apufunktio – palauttaa oikean käännöksen aktiivisen käyttäjän kielen perusteella

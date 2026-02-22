@@ -725,9 +725,17 @@ def init_db():
     conn = sqlite3.connect(DB_NAME, timeout=10)
     c = conn.cursor()
 
-    # Portfoliot-taulu
+    # Portfoliot-taulu (luodaan ensin jos ei ole olemassa)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS portfolios (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            name       TEXT NOT NULL,
+            user_id    INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT
+        )
+    """)
 
-    # Migraatio: lisää user_id-sarake jos puuttuu
+    # Migraatio: lisää user_id-sarake jos puuttuu (vanhat kannat)
     portfolio_cols = [row[1] for row in c.execute("PRAGMA table_info(portfolios)").fetchall()]
     if "user_id" not in portfolio_cols:
         c.execute("ALTER TABLE portfolios ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1")
