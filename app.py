@@ -34,7 +34,7 @@ import hashlib
 from deep_translator import GoogleTranslator
 
 # Asetukset
-VERSION = "1.12.0"
+VERSION = "1.13.0"
 # Käytetään absoluuttista polkua jotta tietokanta säilyy Streamlitin uudelleenkäynnistyksissä
 DB_NAME = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stocks.db")
 
@@ -442,7 +442,7 @@ FINNISH_STOCKS = {
     "UPM.HE":      "UPM-Kymmene",
     "STERV.HE":    "Stora Enso R",
     "KNEBV.HE":    "KONE",
-    "WRTBV.HE":    "Wärtsilä",
+    "WRT1V.HE":    "Wärtsilä",
     "VALMT.HE":    "Valmet",
     "SAMPO.HE":    "Sampo",
     "ELISA.HE":    "Elisa",
@@ -455,7 +455,6 @@ FINNISH_STOCKS = {
     "KESBV.HE":    "Kesko B",
     "KESAV.HE":    "Kesko A",
     "FSKRS.HE":    "Fiskars",
-    "WRT1V.HE":    "Wärtsilä (alt.)",
     # Keskisuuret (Mid Cap)
     "QTCOM.HE":    "Qt Group",
     "REVENIO.HE":  "Revenio Group",
@@ -525,7 +524,7 @@ FINNISH_STOCKS = {
     "REMEDY.HE":   "Remedy Entertainment",
     "REKA.HE":     "Reka Industrial",
     "ROBIT.HE":    "Robit",
-    "SCANFIL.HE":  "Scanfil",
+    "SCANFL.HE":   "Scanfil",
     "SIILI.HE":    "Siili Solutions",
     "SILMÄASEMA.HE": "Silmäasema",
     "SOLWERS.HE":  "Solwers",
