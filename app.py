@@ -28,13 +28,15 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import numpy as np
 import io
+import os
 import time
 import hashlib
 from deep_translator import GoogleTranslator
 
 # Asetukset
-VERSION = "1.10.0"
-DB_NAME = "stocks.db"
+VERSION = "1.11.0"
+# Käytetään absoluuttista polkua jotta tietokanta säilyy Streamlitin uudelleenkäynnistyksissä
+DB_NAME = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stocks.db")
 
 # --- Käyttöliittymän käännökset (FI / EN) ---
 TRANSLATIONS: dict[str, dict[str, str]] = {
@@ -48,7 +50,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "tab_eu": "🇪🇺 EU / Pohjoismaat ETF:t",
         "tab_funds": "📒 Omat rahastot",
         "tab_backtest": "🔁 Backtesting",
-        "tab_info": "ℹ️ Tietoa",
+        "tab_info": "📖 Käyttöohjeet",
         # Sivupalkki
         "sidebar_portfolios": "🗂️ Salkut",
         "sidebar_active": "Aktiivinen salkku",
@@ -227,7 +229,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "tab_eu": "🇪🇺 EU / Nordic ETFs",
         "tab_funds": "📒 My Funds",
         "tab_backtest": "🔁 Backtesting",
-        "tab_info": "ℹ️ About",
+        "tab_info": "📖 User Guide",
         # Sidebar
         "sidebar_portfolios": "🗂️ Portfolios",
         "sidebar_active": "Active portfolio",
@@ -3307,6 +3309,45 @@ def main():
         - 🔁 Backtest strategies on historical data
         - 📈 Visualize prices, indicators and trading signals
 
+        ---
+
+        ## 📋 User Guide: How to Add Stocks to Your Portfolio
+
+        ### 1️⃣ Via the Finnish Stocks tab
+        1. Click the **🇫🇮 Finnish Stocks** tab in the top navigation.
+        2. Press **🔄 Sync** to load the latest list from Helsinki Stock Exchange (OMXH).
+        3. Browse or search the list, then click the **➕ Add** button next to any stock.
+        4. The stock is immediately added to the **active portfolio** shown in the left sidebar.
+
+        ### 2️⃣ Via the US Stocks tab
+        1. Click the **🇺🇸 US Stocks** tab.
+        2. Press **🔄 Sync** to fetch the latest S&P 500 list.
+        3. Click **➕ Add** next to the desired stock to add it to your active portfolio.
+
+        ### 3️⃣ Via the EU / Nordic ETFs tab
+        1. Click the **🇪🇺 EU / Nordic ETFs** tab.
+        2. Press **🔄 Sync**, then use **➕ Add** to add an ETF.
+
+        ### 4️⃣ Import from a file (bulk add)
+        1. In the **left sidebar**, find the **📂 Import stocks from file** section.
+        2. Upload a `.txt` or `.csv` file — one ticker symbol per line, or comma-separated.
+        3. Click **✅ Import all to portfolio**.
+        4. Example file format:
+           ```
+           NOKIA.HE
+           SAMPO.HE
+           NESTE.HE
+           ```
+        5. You can download an example file via the **📄 Download example file** link.
+
+        ### 5️⃣ Managing portfolios
+        - You can create **up to 5 portfolios** using the ➕ button in the sidebar.
+        - Switch the active portfolio by selecting it from the **🗂️ Portfolios** dropdown.
+        - Remove a stock by clicking the 🗑️ trash icon next to it in the sidebar.
+        - To remove a portfolio, click the 🗑️ icon next to its name (the last portfolio cannot be deleted).
+
+        ---
+
         ### 📈 Technical Indicators
 
         **RSI (Relative Strength Index)**
@@ -3366,6 +3407,45 @@ def main():
         - 🔔 Saamaan osto/myynti/pidä-signaaleja
         - 🔁 Testaamaan strategioita historiallisella datalla (backtesting)
         - 📈 Visualisoimaan hintoja, indikaattoreita ja kaupankäyntisignaaleja
+
+        ---
+
+        ## 📋 Käyttöohjeet: Osakkeiden lisääminen salkkuun
+
+        ### 1️⃣ Suomen pörssi -välilehdeltä
+        1. Napsauta yläreunan navigaatiosta **🇫🇮 Suomen pörssi** -välilehteä.
+        2. Paina **🔄 Synkronoi** ladataksesi ajantasaisen listan Helsingin pörssistä (OMXH).
+        3. Selaa tai etsi listasta haluamasi osake ja napsauta sen vieressä olevaa **➕ Lisää** -painiketta.
+        4. Osake lisätään välittömästi vasemmassa sivupalkissa näkyvään **aktiiviseen salkkuun**.
+
+        ### 2️⃣ USA:n pörssi -välilehdeltä
+        1. Napsauta **🇺🇸 USA:n pörssi** -välilehteä.
+        2. Paina **🔄 Synkronoi** noutaaksesi ajantasaisen S&P 500 -listan.
+        3. Napsauta haluamasi osakkeen vieressä **➕ Lisää** lisätäksesi sen aktiiviseen salkkuun.
+
+        ### 3️⃣ EU / Pohjoismaat ETF:t -välilehdeltä
+        1. Napsauta **🇪🇺 EU / Pohjoismaat ETF:t** -välilehteä.
+        2. Paina **🔄 Synkronoi**, sitten **➕ Lisää** haluamasi ETF:n kohdalla.
+
+        ### 4️⃣ Tuo tiedostosta (massalisäys)
+        1. Etsi vasemmasta sivupalkista kohta **📂 Tuo osakkeet tiedostosta**.
+        2. Lataa `.txt`- tai `.csv`-tiedosto — yksi tikkeri per rivi tai pilkuilla erotettuna.
+        3. Napsauta **✅ Tuo kaikki salkkuun**.
+        4. Esimerkkitiedoston muoto:
+           ```
+           NOKIA.HE
+           SAMPO.HE
+           NESTE.HE
+           ```
+        5. Voit ladata esimerkkitiedoston **📄 Lataa esimerkkitiedosto** -linkistä.
+
+        ### 5️⃣ Salkkujen hallinta
+        - Voit luoda **enintään 5 salkkua** sivupalkin ➕-painikkeella.
+        - Vaihda aktiivinen salkku valitsemalla se **🗂️ Salkut**-pudotusvalikosta.
+        - Poista osake salkusta napsauttamalla sen vieressä olevaa 🗑️-kuvaketta sivupalkissa.
+        - Poista salkku napsauttamalla sen nimen vieressä olevaa 🗑️-kuvaketta (viimeistä salkkua ei voi poistaa).
+
+        ---
 
         ### 📈 Tekniset indikaattorit
 
