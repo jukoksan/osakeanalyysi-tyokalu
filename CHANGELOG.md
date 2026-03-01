@@ -5,6 +5,15 @@ Kaikki projektin merkittävät muutokset dokumentoidaan tähän tiedostoon.
 Formaatti perustuu [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) -standardiin,
 ja projekti noudattaa [Semantic Versioning](https://semver.org/spec/v2.0.0.html) -versiointia.
 
+## [1.13.0] - 2026-03-02
+
+### Korjattu
+- 🐛 **Väärät ticker-tunnukset FI_STOCKS-sanakirjassa** – käyttäjät lisäsivat Suomen pörssi -välilehdeltä osakkeita joille Yahoo Finance ei löydä dataa:
+  - `WRTBV.HE` → **`WRT1V.HE`** (Wärtsilä)
+  - `SCANFIL.HE` → **`SCANFL.HE`** (Scanfil)
+- 🔁 **Duplikaatti poistettu** – `WRT1V.HE (alt.)` -merkintä poistettu koska sama tunnus on nyt oikealla nimellä listalla
+- 🗄️ **Kannan korjaus** – olemassa olevat väärät tunnukset päivitetty suoraan `stocks.db`:hen
+
 ## [1.12.0] - 2026-03-01
 
 ### Korjattu
