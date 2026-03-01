@@ -5,6 +5,17 @@ Kaikki projektin merkittävät muutokset dokumentoidaan tähän tiedostoon.
 Formaatti perustuu [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) -standardiin,
 ja projekti noudattaa [Semantic Versioning](https://semver.org/spec/v2.0.0.html) -versiointia.
 
+## [1.11.0] - 2026-03-01
+
+### Korjattu
+- 🐛 **Tietokannan häviäminen idle-tilasta herätessä** – `DB_NAME` muutettu suhteellisesta polusta absoluuttiseksi (`os.path.abspath(__file__)`) jotta `stocks.db` tallennetaan aina projektin juureen riippumatta Streamlitin käynnistyshakemistosta. Tämä esti käyttöliittymästä luotujen käyttäjien ja salkun tietojen häviämisen.
+
+### Lisätty
+- 📋 **Käyttöohjeet salkkuun lisäämisestä** – Tietoa-välilehteen lisätty selkeä vaiheistettu ohje (FI & EN):
+  - Osakkeiden lisääminen Suomen pörssi-, USA- ja EU ETF -välilehdiltä
+  - Massatuonti `.txt`/`.csv`-tiedostosta sivupalkin kautta
+  - Salkkujen luominen, vaihtaminen ja poistaminen
+
 ## [1.10.0] - 2026-02-22
 
 ### Lisätty
