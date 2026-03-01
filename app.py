@@ -34,7 +34,7 @@ import hashlib
 from deep_translator import GoogleTranslator
 
 # Asetukset
-VERSION = "1.11.0"
+VERSION = "1.12.0"
 # Käytetään absoluuttista polkua jotta tietokanta säilyy Streamlitin uudelleenkäynnistyksissä
 DB_NAME = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stocks.db")
 
@@ -1267,18 +1267,44 @@ def parse_symbols_from_text(text: str) -> list[str]:
 # --- Tekninen analyysi ---
 @st.cache_data(ttl=300)
 def fetch_stock_data(symbol: str, period: str = "6mo") -> tuple[pd.DataFrame, dict]:
-    """Hakee osakekurssit ja info Yahoosta (välimuistissa 5 min)."""
+    """Hakee osakekurssit ja info Yahoosta (välimuistissa 5 min).
+    Yrittää uudelleen enintään 3 kertaa exponential backoffilla rate limit -virheiden varalta.
+    """
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            stock = yf.Ticker(symbol)
+            df = stock.history(period=period)
+            info = stock.info
+            return df, info
+        except Exception as e:
+            err = str(e).lower()
+            if "too many requests" in err or "rate limit" in err or "429" in err:
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt + 1)  # 2s, 3s, 5s
+                    continue
+            raise
     stock = yf.Ticker(symbol)
-    df = stock.history(period=period)
-    info = stock.info
-    return df, info
+    return stock.history(period=period), stock.info
 
 @st.cache_data(ttl=300)
 def fetch_stock_history(symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
-    """Hakee pitkän historian backtestingiä varten (välimuistissa 5 min)."""
-    stock = yf.Ticker(symbol)
-    df = stock.history(start=start_date, end=end_date)
-    return df
+    """Hakee pitkän historian backtestingiä varten (välimuistissa 5 min).
+    Yrittää uudelleen enintään 3 kertaa rate limit -virheiden varalta.
+    """
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            stock = yf.Ticker(symbol)
+            return stock.history(start=start_date, end=end_date)
+        except Exception as e:
+            err = str(e).lower()
+            if "too many requests" in err or "rate limit" in err or "429" in err:
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt + 1)
+                    continue
+            raise
+    return yf.Ticker(symbol).history(start=start_date, end=end_date)
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def translate_to_finnish(text: str) -> str:
@@ -1374,7 +1400,10 @@ def get_stock_analysis(symbol, period="6mo"):
         return True, result
         
     except Exception as e:
-        return False, f"Virhe: {str(e)}"
+        err = str(e)
+        if "too many requests" in err.lower() or "rate limit" in err.lower() or "429" in err:
+            return False, "⏳ Yahoo Finance rajoittaa hakuja (rate limit) – odota hetki ja päivitä uudelleen"
+        return False, f"Virhe: {err}"
 
 # --- Backtesting ---
 
@@ -2214,7 +2243,9 @@ def main():
             # Analysoi kaikki osakkeet
             results = []
             with st.spinner(t("analysis_spinner")):
-                for symbol in stocks_df["symbol"]:
+                for i, symbol in enumerate(stocks_df["symbol"]):
+                    if i > 0:
+                        time.sleep(0.5)  # Vältetään Yahoo Finance rate limit
                     success, data = get_stock_analysis(symbol)
                     if success:
                         results.append(data)

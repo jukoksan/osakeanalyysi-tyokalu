@@ -5,13 +5,23 @@ Kaikki projektin merkittävät muutokset dokumentoidaan tähän tiedostoon.
 Formaatti perustuu [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) -standardiin,
 ja projekti noudattaa [Semantic Versioning](https://semver.org/spec/v2.0.0.html) -versiointia.
 
+## [1.12.0] - 2026-03-01
+
+### Korjattu
+- 🐛 **Yahoo Finance rate limit -virhe** – `fetch_stock_data` ja `fetch_stock_history` saivat retry-logiikan exponential backoffilla (2s → 3s → 5s, max 3 yritystä). Estää "Too Many Requests" -virheen kaatamasta analyysiä.
+- 🐛 **Analyysihaut vyöryttivät pyyntöjä kerralla** – analyysisilmukkaan lisätty 0,5 s viive jokaisen osakkeen väliin rate limit -virheiden välttämiseksi.
+- 💬 **Selkeämpi rate limit -virheilmoitus** – käyttäjä näkee nyt "⏳ Yahoo Finance rajoittaa hakuja – odota hetki ja päivitä uudelleen" teknisen virheviestin sijaan.
+
+### Muutettu
+- 🏷️ **Tietoa-välilehden nimi** muutettu "📖 Käyttöohjeet" (FI) / "📖 User Guide" (EN) – kuvastaa paremmin välilehden sisältöä.
+
 ## [1.11.0] - 2026-03-01
 
 ### Korjattu
-- 🐛 **Tietokannan häviäminen idle-tilasta herätessä** – `DB_NAME` muutettu suhteellisesta polusta absoluuttiseksi (`os.path.abspath(__file__)`) jotta `stocks.db` tallennetaan aina projektin juureen riippumatta Streamlitin käynnistyshakemistosta. Tämä esti käyttöliittymästä luotujen käyttäjien ja salkun tietojen häviämisen.
+- 🐛 **Tietokannan häviäminen idle-tilasta herätessä** – `DB_NAME` muutettu suhteellisesta polusta absoluuttiseksi (`os.path.abspath(__file__)`) jotta `stocks.db` tallennetaan aina projektin juureen riippumatta Streamlitin käynnistyshakemistosta. Tämä esti käyttöliittymästä luotujen käyttäjien sekä lisättyjen osakkeiden häviämisen uudelleenkäynnistyksen yhteydessä.
 
 ### Lisätty
-- 📋 **Käyttöohjeet salkkuun lisäämisestä** – Tietoa-välilehteen lisätty selkeä vaiheistettu ohje (FI & EN):
+- 📋 **Käyttöohjeet salkkuun lisäämisestä** – Käyttöohjeet-välilehteen lisätty selkeä vaiheistettu ohje (FI & EN):
   - Osakkeiden lisääminen Suomen pörssi-, USA- ja EU ETF -välilehdiltä
   - Massatuonti `.txt`/`.csv`-tiedostosta sivupalkin kautta
   - Salkkujen luominen, vaihtaminen ja poistaminen
